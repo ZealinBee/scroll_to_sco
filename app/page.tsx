@@ -2,7 +2,44 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Image as ImageIcon, Sparkles, Bone, Ruler, MapPin, ArrowLeftRight, Target, Dumbbell, LucideIcon, Loader2 } from "lucide-react";
+import {
+  Upload,
+  Image as ImageIcon,
+  Sparkles,
+  Bone,
+  Ruler,
+  MapPin,
+  ArrowLeftRight,
+  Target,
+  Dumbbell,
+  LucideIcon,
+  Loader2,
+  FlipHorizontal2,
+  Check,
+  AlertTriangle,
+  ChevronLeft,
+} from "lucide-react";
+
+// Types for orientation
+type ImageOrientation = "standard" | "flipped" | "unknown";
+
+interface DetectedMarker {
+  marker: string;
+  position: string;
+  confidence: number;
+}
+
+interface OrientationDetectionResult {
+  detected_marker: DetectedMarker | null;
+  suggested_orientation: ImageOrientation;
+  confidence: number;
+}
+
+interface OrientationDetectionResponse {
+  success: boolean;
+  detection_result: OrientationDetectionResult;
+  preview_image: string;
+}
 
 function FeatureItem({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   return (
@@ -15,14 +52,202 @@ function FeatureItem({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   );
 }
 
+function OrientationConfirmation({
+  previewImage,
+  detectionResult,
+  isFlipped,
+  onFlip,
+  onConfirm,
+  onBack,
+  isLoading,
+}: {
+  previewImage: string;
+  detectionResult: OrientationDetectionResult | null;
+  isFlipped: boolean;
+  onFlip: () => void;
+  onConfirm: (orientation: ImageOrientation) => void;
+  onBack: () => void;
+  isLoading: boolean;
+}) {
+  const [selectedOrientation, setSelectedOrientation] =
+    useState<ImageOrientation>(
+      detectionResult?.suggested_orientation === "unknown"
+        ? "standard"
+        : detectionResult?.suggested_orientation || "standard"
+    );
+
+  const hasMarker = detectionResult?.detected_marker !== null;
+  const confidence = detectionResult?.confidence || 0;
+
+  return (
+    <div className="glass p-6 space-y-6">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <div className="w-12 h-12 mx-auto rounded-[16px] bg-primary/10 flex items-center justify-center">
+          <ArrowLeftRight size={24} className="text-primary" />
+        </div>
+        <h2 className="text-xl font-semibold text-dark">
+          Confirm Image Orientation
+        </h2>
+        <p className="text-sm text-muted leading-relaxed">
+          Correct orientation ensures accurate left/right curve detection
+        </p>
+      </div>
+
+      {/* Image Preview with Flip Control */}
+      <div className="space-y-4">
+        <div className="relative rounded-[16px] overflow-hidden bg-dark/5">
+          <img
+            src={previewImage}
+            alt="X-ray preview"
+            className={`w-full h-64 object-contain transition-transform duration-300 ${
+              isFlipped ? "scale-x-[-1]" : ""
+            }`}
+          />
+
+          {/* Flip Button Overlay */}
+          <button
+            onClick={onFlip}
+            className="absolute bottom-4 right-4 btn btn-secondary p-3"
+            title="Flip image horizontally"
+          >
+            <FlipHorizontal2 size={20} />
+          </button>
+
+          {/* Orientation Labels */}
+          <div className="absolute top-4 left-4 glass-subtle px-3 py-1.5 text-xs font-medium text-dark">
+            {isFlipped ? "Patient R" : "Patient L"}
+          </div>
+          <div className="absolute top-4 right-4 glass-subtle px-3 py-1.5 text-xs font-medium text-dark">
+            {isFlipped ? "Patient L" : "Patient R"}
+          </div>
+        </div>
+
+        {/* Flip Status */}
+        {isFlipped && (
+          <div className="glass-subtle p-3 flex items-center gap-2 text-sm">
+            <FlipHorizontal2 size={16} className="text-primary" />
+            <span className="text-dark">Image has been flipped</span>
+          </div>
+        )}
+      </div>
+
+      {/* Detection Result */}
+      {hasMarker ? (
+        <div className="glass-subtle p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Check size={18} className="text-primary" />
+            <span className="font-medium text-dark">
+              &quot;{detectionResult?.detected_marker?.marker}&quot; marker
+              detected
+            </span>
+            <span className="text-xs text-muted">
+              ({(confidence * 100).toFixed(0)}% confidence)
+            </span>
+          </div>
+          <p className="text-sm text-muted">
+            Based on the marker position, this appears to be a{" "}
+            <span className="font-medium text-dark">
+              {detectionResult?.suggested_orientation === "standard"
+                ? "standard PA view"
+                : "mirrored image"}
+            </span>
+          </p>
+        </div>
+      ) : (
+        <div className="glass-subtle p-4 space-y-2 border border-yellow-200 bg-yellow-50/30">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={18} className="text-yellow-600" />
+            <span className="font-medium text-dark">
+              No L/R marker detected
+            </span>
+          </div>
+          <p className="text-sm text-muted">
+            Please verify the orientation manually. In a standard PA X-ray, the
+            patient&apos;s left side appears on the right side of the image.
+          </p>
+        </div>
+      )}
+
+      {/* Confirmation Selection */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-dark">Confirm orientation:</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setSelectedOrientation("standard")}
+            className={`p-4 rounded-[16px] border-2 transition-all text-left ${
+              selectedOrientation === "standard"
+                ? "border-primary bg-primary/10"
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+          >
+            <p className="font-medium text-dark">Standard View</p>
+            <p className="text-xs text-muted">Patient&apos;s left on image right</p>
+          </button>
+          <button
+            onClick={() => setSelectedOrientation("flipped")}
+            className={`p-4 rounded-[16px] border-2 transition-all text-left ${
+              selectedOrientation === "flipped"
+                ? "border-primary bg-primary/10"
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+          >
+            <p className="font-medium text-dark">Mirrored View</p>
+            <p className="text-xs text-muted">Patient&apos;s left on image left</p>
+          </button>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={onBack}
+          className="btn btn-secondary flex-1"
+          disabled={isLoading}
+        >
+          <ChevronLeft size={18} />
+          Back
+        </button>
+        <button
+          onClick={() => onConfirm(selectedOrientation)}
+          className="btn btn-primary flex-1"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Analyzing...
+            </>
+          ) : (
+            <>
+              <Sparkles size={18} />
+              Confirm & Analyze
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Orientation confirmation state
+  const [step, setStep] = useState<"upload" | "confirm">("upload");
+  const [detectionResult, setDetectionResult] =
+    useState<OrientationDetectionResult | null>(null);
+  const [previewWithMarker, setPreviewWithMarker] = useState<string | null>(
+    null
+  );
+  const [isFlipped, setIsFlipped] = useState(false);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -55,6 +280,10 @@ export default function Home() {
 
   const handleFile = (file: File) => {
     setSelectedFile(file);
+    setDetectionResult(null);
+    setPreviewWithMarker(null);
+    setIsFlipped(false);
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreview(reader.result as string);
@@ -66,7 +295,60 @@ export default function Home() {
     inputRef.current?.click();
   };
 
-  const handleAnalyze = async () => {
+  const handleContinueToConfirm = async () => {
+    if (!preview) return;
+
+    setIsDetecting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/detect-orientation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: preview }),
+      });
+
+      const data: OrientationDetectionResponse = await response.json();
+
+      if (data.success) {
+        setDetectionResult(data.detection_result);
+        setPreviewWithMarker(data.preview_image);
+      } else {
+        // If detection fails, still allow manual confirmation
+        setDetectionResult({
+          detected_marker: null,
+          suggested_orientation: "unknown",
+          confidence: 0,
+        });
+        setPreviewWithMarker(null);
+      }
+    } catch (err) {
+      console.error("Orientation detection error:", err);
+      // Allow manual confirmation even if detection fails
+      setDetectionResult({
+        detected_marker: null,
+        suggested_orientation: "unknown",
+        confidence: 0,
+      });
+      setPreviewWithMarker(null);
+    } finally {
+      setIsDetecting(false);
+      setStep("confirm");
+    }
+  };
+
+  const handleBackToUpload = () => {
+    setStep("upload");
+    setIsFlipped(false);
+  };
+
+  const handleFlip = () => {
+    setIsFlipped(!isFlipped);
+  };
+
+  const handleConfirmAndAnalyze = async (
+    confirmedOrientation: ImageOrientation
+  ) => {
     if (!preview) return;
 
     setIsAnalyzing(true);
@@ -75,32 +357,74 @@ export default function Home() {
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image: preview }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: preview,
+          confirmed_orientation: confirmedOrientation,
+          image_flipped: isFlipped,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.detail?.error || "Analysis failed");
+        throw new Error(
+          data.error || data.detail?.error || "Analysis failed"
+        );
       }
 
-      // Store results in sessionStorage for the results page
       sessionStorage.setItem("analysisResults", JSON.stringify(data));
-
-      // Navigate to results page
       router.push("/results");
-
     } catch (err) {
       console.error("Analysis error:", err);
-      setError(err instanceof Error ? err.message : "Failed to analyze image. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to analyze image. Please try again."
+      );
+      setStep("upload");
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  // Render confirmation step
+  if (step === "confirm" && preview) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <main className="w-full max-w-lg space-y-8">
+          <OrientationConfirmation
+            previewImage={
+              previewWithMarker
+                ? `data:image/jpeg;base64,${previewWithMarker}`
+                : preview
+            }
+            detectionResult={detectionResult}
+            isFlipped={isFlipped}
+            onFlip={handleFlip}
+            onConfirm={handleConfirmAndAnalyze}
+            onBack={handleBackToUpload}
+            isLoading={isAnalyzing}
+          />
+
+          {/* Error Message */}
+          {error && (
+            <div className="glass-subtle p-4 border border-red-200 bg-red-50/50">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {/* Trust Note */}
+          <p className="text-center text-xs text-muted">
+            Your images are processed securely and never stored without your
+            permission.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  // Render upload step
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <main className="w-full max-w-lg space-y-8">
@@ -114,7 +438,8 @@ export default function Home() {
             Let&apos;s take a look at your spine
           </h1>
           <p className="text-muted text-lg leading-relaxed max-w-md mx-auto">
-            Upload an X-ray image of your back, and our AI will provide you with personalized insights about your spinal health.
+            Upload an X-ray image of your back, and our AI will provide you with
+            personalized insights about your spinal health.
           </p>
         </div>
 
@@ -181,7 +506,9 @@ export default function Home() {
                       {selectedFile?.name}
                     </p>
                     <p className="text-xs text-muted">
-                      {selectedFile && (selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {selectedFile &&
+                        (selectedFile.size / 1024 / 1024).toFixed(2)}{" "}
+                      MB
                     </p>
                   </div>
                 </div>
@@ -190,9 +517,11 @@ export default function Home() {
                     setSelectedFile(null);
                     setPreview(null);
                     setError(null);
+                    setDetectionResult(null);
+                    setPreviewWithMarker(null);
                   }}
                   className="btn btn-ghost text-sm"
-                  disabled={isAnalyzing}
+                  disabled={isDetecting}
                 >
                   Change
                 </button>
@@ -210,7 +539,9 @@ export default function Home() {
 
         {/* What We Analyze */}
         <div className="glass-subtle p-5">
-          <p className="text-sm font-medium text-dark mb-4">What we&apos;ll analyze for you</p>
+          <p className="text-sm font-medium text-dark mb-4">
+            What we&apos;ll analyze for you
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <FeatureItem icon={Bone} text="Vertebrae detection" />
             <FeatureItem icon={Ruler} text="Cobb angle measurement" />
@@ -221,22 +552,22 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Analyze Button */}
+        {/* Continue Button */}
         {preview && (
           <button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
+            onClick={handleContinueToConfirm}
+            disabled={isDetecting}
             className="btn btn-primary w-full text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {isAnalyzing ? (
+            {isDetecting ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
-                Analyzing...
+                Detecting Orientation...
               </>
             ) : (
               <>
-                <Sparkles size={20} />
-                Analyze My X-Ray
+                <ArrowLeftRight size={20} />
+                Continue to Orientation Check
               </>
             )}
           </button>
@@ -244,7 +575,8 @@ export default function Home() {
 
         {/* Trust Note */}
         <p className="text-center text-xs text-muted">
-          Your images are processed securely and never stored without your permission.
+          Your images are processed securely and never stored without your
+          permission.
         </p>
       </main>
     </div>

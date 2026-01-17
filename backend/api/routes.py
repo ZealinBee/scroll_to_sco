@@ -5,7 +5,9 @@ from fastapi import APIRouter, HTTPException
 
 from .schemas import (
     AnalysisRequest, AnalysisResponse, ErrorResponse, HealthResponse,
-    Severity
+    Severity, ImageOrientation,
+    OrientationDetectionRequest, OrientationDetectionResponse,
+    OrientationDetectionResult
 )
 from scoliovis.model import get_model
 from scoliovis.preprocessing import image_to_numpy
@@ -17,6 +19,9 @@ from scoliovis.classification import (
     determine_schroth_type, determine_severity, get_primary_curve_info
 )
 from scoliovis.visualization import draw_skeleton_overlay, image_to_base64
+from scoliovis.orientation import (
+    detect_lr_marker, flip_image_horizontal, draw_marker_highlight
+)
 from exercises.recommendations import get_exercises_for_schroth_type
 from utils.validation import (
     validate_image, validate_detection_results,
@@ -24,6 +29,52 @@ from utils.validation import (
 )
 
 router = APIRouter()
+
+
+@router.post("/detect-orientation", response_model=OrientationDetectionResponse)
+async def detect_orientation(request: OrientationDetectionRequest):
+    """
+    Detect L/R marker orientation on an X-ray image.
+
+    Returns:
+    - Detected marker (if any)
+    - Suggested orientation
+    - Preview image with marker highlighted
+    """
+    try:
+        # Validate and decode image
+        image = validate_image(request.image)
+        image_np = image_to_numpy(image)
+
+        # Detect marker
+        detection_result = detect_lr_marker(image)
+
+        # Create preview image
+        if detection_result.detected_marker:
+            preview_np = draw_marker_highlight(image_np, detection_result.detected_marker)
+        else:
+            preview_np = image_np
+
+        preview_base64 = image_to_base64(preview_np)
+
+        return OrientationDetectionResponse(
+            success=True,
+            detection_result=detection_result,
+            preview_image=preview_base64
+        )
+
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail={
+            "error": e.message,
+            "error_code": e.error_code
+        })
+
+    except Exception as e:
+        print(f"Orientation detection error: {str(e)}")
+        raise HTTPException(status_code=500, detail={
+            "error": f"Orientation detection failed: {str(e)}",
+            "error_code": ErrorCodes.MODEL_ERROR
+        })
 
 
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -45,9 +96,24 @@ async def analyze_spine(request: AnalysisRequest):
     try:
         # 1. Validate and decode image
         image = validate_image(request.image)
+
+        # 2. Handle image flipping if user requested
+        if request.image_flipped:
+            image = flip_image_horizontal(image)
+
         image_np = image_to_numpy(image)
 
-        # 2. Get model and run inference
+        # 3. Determine orientation to use
+        if request.confirmed_orientation:
+            orientation = request.confirmed_orientation
+            orientation_confidence = 1.0  # User confirmed
+        else:
+            # Auto-detect orientation
+            detection_result = detect_lr_marker(image)
+            orientation = detection_result.suggested_orientation
+            orientation_confidence = detection_result.confidence
+
+        # 4. Get model and run inference
         model = get_model()
         if not model.is_loaded():
             raise HTTPException(
@@ -66,8 +132,8 @@ async def analyze_spine(request: AnalysisRequest):
         # 5. Extract vertebrae objects
         vertebrae = extract_vertebrae(filtered)
 
-        # 6. Calculate Cobb angles
-        cobb_angles = calculate_all_cobb_angles(vertebrae)
+        # 6. Calculate Cobb angles (with orientation for correct left/right)
+        cobb_angles = calculate_all_cobb_angles(vertebrae, orientation)
         primary_cobb = get_primary_cobb_angle(cobb_angles)
 
         # 7. Determine classifications
@@ -102,7 +168,9 @@ async def analyze_spine(request: AnalysisRequest):
             annotated_image=annotated_base64,
             exercises=exercises,
             confidence_score=round(confidence_score, 3),
-            processing_time_ms=round(processing_time, 2)
+            processing_time_ms=round(processing_time, 2),
+            orientation_used=orientation,
+            orientation_confidence=round(orientation_confidence, 3)
         )
 
     except ValidationError as e:

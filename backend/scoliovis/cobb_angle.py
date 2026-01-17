@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List, Tuple, Optional
-from api.schemas import Vertebra, Keypoint, CobbAngleMeasurement, CurveLocation, CurveDirection
+from api.schemas import Vertebra, Keypoint, CobbAngleMeasurement, CurveLocation, CurveDirection, ImageOrientation
 
 
 def get_endplate_vector(keypoints: List[Keypoint], endplate: str = "upper") -> np.ndarray:
@@ -165,13 +165,22 @@ def determine_curve_location(
 def determine_curve_direction(
     vertebrae: List[Vertebra],
     start_idx: int,
-    end_idx: int
+    end_idx: int,
+    orientation: ImageOrientation = ImageOrientation.STANDARD
 ) -> CurveDirection:
     """
     Determine curve direction (left/right convexity) based on apex position.
 
-    - Right (Dextroscoliosis): Apex deviates to the right
-    - Left (Levoscoliosis): Apex deviates to the left
+    Args:
+        vertebrae: List of detected vertebrae
+        start_idx: Start index of curve segment
+        end_idx: End index of curve segment
+        orientation: Image orientation to correctly interpret left/right
+
+    - Right (Dextroscoliosis): Apex deviates to patient's right
+    - Left (Levoscoliosis): Apex deviates to patient's left
+
+    Note: If image is flipped, we invert the result to get anatomical direction.
     """
     segment = vertebrae[start_idx:end_idx + 1]
 
@@ -195,12 +204,23 @@ def determine_curve_direction(
 
     apex_x = x_positions[apex_local_idx]
 
+    # Determine direction based on pixel coordinates
+    # In standard view: higher x = right side of image = patient's left
     if apex_x > midline_x:
-        return CurveDirection.RIGHT
+        pixel_direction = CurveDirection.RIGHT
     elif apex_x < midline_x:
-        return CurveDirection.LEFT
+        pixel_direction = CurveDirection.LEFT
     else:
         return CurveDirection.NONE
+
+    # If image is flipped, invert the direction to get anatomical direction
+    if orientation == ImageOrientation.FLIPPED:
+        if pixel_direction == CurveDirection.RIGHT:
+            return CurveDirection.LEFT
+        elif pixel_direction == CurveDirection.LEFT:
+            return CurveDirection.RIGHT
+
+    return pixel_direction
 
 
 def calculate_cobb_angle_for_segment(
@@ -228,9 +248,16 @@ def calculate_cobb_angle_for_segment(
     return round(angle, 1)
 
 
-def calculate_all_cobb_angles(vertebrae: List[Vertebra]) -> List[CobbAngleMeasurement]:
+def calculate_all_cobb_angles(
+    vertebrae: List[Vertebra],
+    orientation: ImageOrientation = ImageOrientation.STANDARD
+) -> List[CobbAngleMeasurement]:
     """
     Calculate all significant Cobb angles in the spine.
+
+    Args:
+        vertebrae: List of detected vertebrae
+        orientation: Image orientation for correct left/right determination
 
     Returns measurements sorted by angle (largest first).
     """
@@ -260,9 +287,9 @@ def calculate_all_cobb_angles(vertebrae: List[Vertebra]) -> List[CobbAngleMeasur
         # Find apex
         apex_idx = find_apex_vertebra(vertebrae, upper_idx, lower_idx)
 
-        # Determine location and direction
+        # Determine location and direction (pass orientation for correct left/right)
         location = determine_curve_location(upper_idx, lower_idx, len(vertebrae))
-        direction = determine_curve_direction(vertebrae, upper_idx, lower_idx)
+        direction = determine_curve_direction(vertebrae, upper_idx, lower_idx, orientation)
 
         measurement = CobbAngleMeasurement(
             angle=angle,

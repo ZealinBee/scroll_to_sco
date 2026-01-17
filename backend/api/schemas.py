@@ -30,6 +30,13 @@ class Severity(str, Enum):
     VERY_SEVERE = "very_severe"
 
 
+class ImageOrientation(str, Enum):
+    """Patient orientation in the image"""
+    STANDARD = "standard"      # Patient's left is on image right (typical PA view)
+    FLIPPED = "flipped"        # Patient's left is on image left (mirrored)
+    UNKNOWN = "unknown"        # No marker detected
+
+
 class Keypoint(BaseModel):
     x: float
     y: float
@@ -68,8 +75,40 @@ class Exercise(BaseModel):
     video_url: Optional[str] = None
 
 
+class DetectedMarker(BaseModel):
+    """OCR-detected orientation marker"""
+    marker: str               # "L", "R", or "unknown"
+    position: str             # "left", "right"
+    confidence: float
+
+
+class OrientationDetectionResult(BaseModel):
+    """Result of marker detection"""
+    detected_marker: Optional[DetectedMarker] = None
+    suggested_orientation: ImageOrientation
+    confidence: float
+
+
+class OrientationDetectionRequest(BaseModel):
+    image: str = Field(..., description="Base64 encoded image")
+
+
+class OrientationDetectionResponse(BaseModel):
+    success: bool
+    detection_result: OrientationDetectionResult
+    preview_image: str  # Base64 image with detected marker highlighted
+
+
 class AnalysisRequest(BaseModel):
     image: str = Field(..., description="Base64 encoded image")
+    confirmed_orientation: Optional[ImageOrientation] = Field(
+        default=None,
+        description="User-confirmed orientation. If not provided, auto-detection is used."
+    )
+    image_flipped: bool = Field(
+        default=False,
+        description="Whether the user flipped the image horizontally"
+    )
 
 
 class AnalysisResponse(BaseModel):
@@ -99,6 +138,10 @@ class AnalysisResponse(BaseModel):
     # Metadata
     confidence_score: float
     processing_time_ms: float
+
+    # Orientation info
+    orientation_used: ImageOrientation = ImageOrientation.STANDARD
+    orientation_confidence: float = 1.0
 
 
 class ErrorResponse(BaseModel):
