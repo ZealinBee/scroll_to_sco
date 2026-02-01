@@ -808,6 +808,8 @@ export function createAsymmetryProfile(
     scapula_prominence_diff: number;
     waist_height_diff_pct: number;
     overall_asymmetry_score: number;
+    higher_shoulder?: "left" | "right" | null;
+    higher_hip?: "left" | "right" | null;
   },
   riskLevel: "LOW" | "MEDIUM" | "HIGH"
 ): AsymmetryProfile {
@@ -821,11 +823,11 @@ export function createAsymmetryProfile(
     waistAsymmetry: Math.abs(metrics.waist_height_diff_pct),
     overallScore: metrics.overall_asymmetry_score,
     riskLevel,
-    // Determine which side is higher based on sign of measurement
-    higherShoulder:
-      metrics.shoulder_height_diff_pct > 0 ? "left" : "right",
-    higherHip: metrics.hip_height_diff_pct > 0 ? "left" : "right",
-    trunkShiftDirection: metrics.trunk_shift_pct > 0 ? "left" : "right",
+    // Use explicit side from backend if available, otherwise fallback to sign-based detection
+    // Note: For back photos, we use viewer's perspective (subject's left = viewer's right)
+    higherShoulder: metrics.higher_shoulder ?? (metrics.shoulder_height_diff_pct > 0 ? "right" : "left"),
+    higherHip: metrics.higher_hip ?? (metrics.hip_height_diff_pct > 0 ? "right" : "left"),
+    trunkShiftDirection: metrics.trunk_shift_pct > 0 ? "right" : "left",
   };
 }
 

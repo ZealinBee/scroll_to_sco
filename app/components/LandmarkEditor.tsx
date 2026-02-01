@@ -374,70 +374,72 @@ export function createDefaultLandmarks(metrics: {
   left_waist: { x: number; y: number };
   right_waist: { x: number; y: number };
 }): LandmarkPoint[] {
+  // Note: Internal IDs use MediaPipe's subject perspective (left_shoulder = subject's left)
+  // Labels use VIEWER's perspective for back photos (subject's left = viewer's right)
   return [
     {
       id: "left_shoulder",
-      label: "L. Shoulder",
+      label: "R. Shoulder",  // Subject's left appears on viewer's right
       x: metrics.left_shoulder.x,
       y: metrics.left_shoulder.y,
       color: "#3F9B61",
-      description: "Left shoulder point - used for shoulder height difference calculation",
+      description: "Right shoulder point (viewer's perspective) - used for shoulder height difference calculation",
     },
     {
       id: "right_shoulder",
-      label: "R. Shoulder",
+      label: "L. Shoulder",  // Subject's right appears on viewer's left
       x: metrics.right_shoulder.x,
       y: metrics.right_shoulder.y,
       color: "#3F9B61",
-      description: "Right shoulder point - used for shoulder height difference calculation",
+      description: "Left shoulder point (viewer's perspective) - used for shoulder height difference calculation",
     },
     {
       id: "left_axilla",
-      label: "L. Axilla",
+      label: "R. Axilla",
       x: metrics.left_axilla.x,
       y: metrics.left_axilla.y,
       color: "#F59E0B",
-      description: "Left axillary fold (armpit) - HAI component, reflects torso asymmetry",
+      description: "Right axillary fold (viewer's perspective) - HAI component, reflects torso asymmetry",
     },
     {
       id: "right_axilla",
-      label: "R. Axilla",
+      label: "L. Axilla",
       x: metrics.right_axilla.x,
       y: metrics.right_axilla.y,
       color: "#F59E0B",
-      description: "Right axillary fold (armpit) - HAI component, reflects torso asymmetry",
+      description: "Left axillary fold (viewer's perspective) - HAI component, reflects torso asymmetry",
     },
     {
       id: "left_waist",
-      label: "L. Waist",
+      label: "R. Waist",
       x: metrics.left_waist.x,
       y: metrics.left_waist.y,
       color: "#8B5CF6",
-      description: "Left waist crease - HAI component, key lumbar curve indicator",
+      description: "Right waist crease (viewer's perspective) - HAI component, key lumbar curve indicator",
     },
     {
       id: "right_waist",
-      label: "R. Waist",
+      label: "L. Waist",
       x: metrics.right_waist.x,
       y: metrics.right_waist.y,
       color: "#8B5CF6",
-      description: "Right waist crease - HAI component, key lumbar curve indicator",
+      description: "Left waist crease (viewer's perspective) - HAI component, key lumbar curve indicator",
     },
     {
       id: "left_hip",
-      label: "L. Hip",
+      label: "R. Hip",
       x: metrics.left_hip.x,
       y: metrics.left_hip.y,
       color: "#3F9B61",
-      description: "Left hip point - used for pelvic obliquity assessment",
+      description: "Right hip point (viewer's perspective) - used for pelvic obliquity assessment",
     },
     {
       id: "right_hip",
-      label: "R. Hip",
+      label: "L. Hip",
       x: metrics.right_hip.x,
       y: metrics.right_hip.y,
       color: "#3F9B61",
-      description: "Right hip point - used for pelvic obliquity assessment",
+      description: "Left hip point (viewer's perspective) - used for pelvic obliquity assessment",
     },
   ];
 }

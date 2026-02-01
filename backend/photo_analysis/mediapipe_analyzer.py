@@ -72,6 +72,10 @@ class AsymmetryMetrics:
     waist_height_diff_pct: float = 0.0  # % of torso height
     axilla_height_diff_pct: float = 0.0  # % of torso height
 
+    # Side indicators (which side is higher)
+    higher_shoulder: Optional[str] = None  # 'left', 'right', or None if equal
+    higher_hip: Optional[str] = None  # 'left', 'right', or None if equal
+
 
 @dataclass
 class PhotoAnalysisResult:
@@ -469,6 +473,32 @@ def calculate_asymmetry_metrics(
     score += min(8, (shoulder_rotation_score / 0.05) * 8)
     score += min(7, abs(scapula_prominence_diff) / 0.05 * 7)
 
+    # ============================================================
+    # DETERMINE WHICH SIDE IS HIGHER (from viewer's perspective)
+    # In image coordinates: lower Y = higher position on screen
+    # shoulder_height_diff_px = (right_shoulder.y - left_shoulder.y) * height
+    # If positive: right_shoulder.y > left_shoulder.y -> MediaPipe left is higher
+    # If negative: right_shoulder.y < left_shoulder.y -> MediaPipe right is higher
+    #
+    # For BACK PHOTOS, we use VIEWER's perspective:
+    # - MediaPipe "left" (subject's left) appears on RIGHT side of image
+    # - MediaPipe "right" (subject's right) appears on LEFT side of image
+    # So we swap: MediaPipe left -> viewer's right, MediaPipe right -> viewer's left
+    # ============================================================
+    SIDE_THRESHOLD = 0.5  # Threshold in percentage to consider as "different"
+
+    if shoulder_height_diff_pct >= SIDE_THRESHOLD:
+        # Positive diff means MediaPipe left is higher (lower Y in image coords)
+        # From viewer's perspective looking at back: subject's left = viewer's right
+        higher_shoulder = "right" if shoulder_height_diff_px > 0 else "left"
+    else:
+        higher_shoulder = None  # Shoulders are essentially level
+
+    if hip_height_diff_pct >= SIDE_THRESHOLD:
+        higher_hip = "right" if hip_height_diff_px > 0 else "left"
+    else:
+        higher_hip = None  # Hips are essentially level
+
     return AsymmetryMetrics(
         shoulder_height_diff_px=round(shoulder_height_diff_px, 1),
         hip_height_diff_px=round(hip_height_diff_px, 1),
@@ -484,7 +514,9 @@ def calculate_asymmetry_metrics(
         hip_height_diff_pct=round(hip_height_diff_pct, 1),
         trunk_shift_pct=round(trunk_shift_pct, 1),
         waist_height_diff_pct=round(waist_height_diff_pct, 1),
-        axilla_height_diff_pct=round(axilla_height_diff_pct, 1)
+        axilla_height_diff_pct=round(axilla_height_diff_pct, 1),
+        higher_shoulder=higher_shoulder,
+        higher_hip=higher_hip
     )
 
 

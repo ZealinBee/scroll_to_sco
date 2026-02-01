@@ -85,6 +85,9 @@ interface AsymmetryMetrics {
   // Composite scores
   hai_score: number;  // Height Asymmetry Index (POTSI: >10 is pathologic)
   overall_asymmetry_score: number;
+  // Side indicators
+  higher_shoulder?: "left" | "right" | null;
+  higher_hip?: "left" | "right" | null;
 }
 
 interface LandmarkPosition {
@@ -1727,6 +1730,11 @@ function PhotoResultsDisplay({ result: initialResult, onNewAnalysis }: { result:
                 {result.metrics.shoulder_height_diff_pct.toFixed(1)}%
               </span>
             </div>
+            {result.metrics.higher_shoulder && result.metrics.shoulder_height_diff_pct >= 0.5 && (
+              <p className="text-xs text-primary font-medium">
+                {result.metrics.higher_shoulder.charAt(0).toUpperCase() + result.metrics.higher_shoulder.slice(1)} shoulder is higher
+              </p>
+            )}
             <div className="h-1.5 bg-dark/10 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${
@@ -1826,6 +1834,11 @@ function PhotoResultsDisplay({ result: initialResult, onNewAnalysis }: { result:
                 <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
                   {badge.text}
                 </span>
+                {result.metrics.higher_shoulder && result.metrics.shoulder_height_diff_pct >= 0.5 && (
+                  <p className="text-xs text-primary font-medium">
+                    {result.metrics.higher_shoulder.charAt(0).toUpperCase() + result.metrics.higher_shoulder.slice(1)} shoulder is higher
+                  </p>
+                )}
                 <p className="text-xs text-muted">
                   Reference: Percentage of torso height. &gt;3% indicates shoulder imbalance.
                 </p>
@@ -1910,6 +1923,11 @@ function PhotoResultsDisplay({ result: initialResult, onNewAnalysis }: { result:
                 <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
                   {badge.text}
                 </span>
+                {result.metrics.higher_hip && result.metrics.hip_height_diff_pct >= 0.5 && (
+                  <p className="text-xs text-primary font-medium">
+                    {result.metrics.higher_hip.charAt(0).toUpperCase() + result.metrics.higher_hip.slice(1)} hip is higher
+                  </p>
+                )}
                 <p className="text-xs text-muted">
                   Pelvic obliquity may indicate leg length discrepancy or compensatory changes from lumbar curvature.
                 </p>
@@ -2485,7 +2503,18 @@ export default function ResultsPage() {
             Begin your journey with exercises, breathing techniques, and progress tracking designed to help improve your posture over time.
           </p>
           <button
-            onClick={() => router.push("/journey")}
+            onClick={() => {
+              // Save X-ray analysis data for the journey page
+              sessionStorage.setItem("xrayAnalysis", JSON.stringify({
+                curve_location: xrayResult.curve_location,
+                curve_direction: xrayResult.curve_direction,
+                schroth_type: xrayResult.schroth_type,
+                severity: xrayResult.severity,
+                primary_cobb_angle: xrayResult.primary_cobb_angle,
+              }));
+              sessionStorage.setItem("analysisType", "xray");
+              router.push("/journey");
+            }}
             className="btn btn-primary w-full"
           >
             Start Your Journey

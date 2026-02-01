@@ -629,9 +629,11 @@ export default function StylizedBody({
   });
 
   return (
-    <group ref={groupRef} position={[0, -0.2, 0]}>
-      {/* Spine */}
-      <Spine />
+    // Rotate 180 degrees to show BACK view (for Schroth breathing exercises)
+    <group rotation={[0, Math.PI, 0]}>
+      <group ref={groupRef} position={[0, -0.2, 0]}>
+        {/* Spine */}
+        <Spine />
 
       {/* Ribcage */}
       <Ribcage
@@ -652,6 +654,7 @@ export default function StylizedBody({
 
       {/* Skull */}
       <Skull />
+      </group>
     </group>
   );
 }

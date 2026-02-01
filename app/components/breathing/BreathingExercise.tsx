@@ -46,6 +46,9 @@ interface PhotoAnalysisData {
     shoulder_rotation_score: number;
     hip_rotation_score: number;
     overall_asymmetry_score: number;
+    // Side indicators (viewer's perspective for back photos)
+    higher_shoulder?: "left" | "right" | null;
+    higher_hip?: "left" | "right" | null;
   };
   riskLevel?: "LOW" | "MEDIUM" | "HIGH";
 }
@@ -99,11 +102,13 @@ export default function BreathingExercise({
     }
 
     if (analysisType === "photo" && photoData?.metrics) {
-      // Determine higher shoulder from metrics
+      // Use higher_shoulder from backend (already in viewer's perspective)
+      // Fallback to default if not available
       const higherShoulder: "left" | "right" | undefined =
-        photoData.metrics.shoulder_height_diff_pct > 0 ? "right" : "left";
+        photoData.metrics.higher_shoulder ?? "right";
+      // trunk_shift_pct doesn't have a sign indicating direction, default based on higher shoulder
       const trunkShiftDirection: "left" | "right" | undefined =
-        photoData.metrics.trunk_shift_pct > 0 ? "right" : "left";
+        higherShoulder === "right" ? "left" : "right";
 
       return getPhotoBasedInstructions(higherShoulder, trunkShiftDirection);
     }
@@ -115,15 +120,13 @@ export default function BreathingExercise({
   // Get photo data for display
   const photoDisplayData = useMemo(() => {
     if (!photoData?.metrics) return undefined;
+    // Use higher_shoulder from backend (viewer's perspective)
+    const higherShoulder = photoData.metrics.higher_shoulder ?? "right";
     return {
-      higherShoulder:
-        (photoData.metrics.shoulder_height_diff_pct > 0 ? "right" : "left") as
-          | "left"
-          | "right",
-      trunkShiftDirection:
-        (photoData.metrics.trunk_shift_pct > 0 ? "right" : "left") as
-          | "left"
-          | "right",
+      higherShoulder: higherShoulder as "left" | "right",
+      trunkShiftDirection: (higherShoulder === "right" ? "left" : "right") as
+        | "left"
+        | "right",
       shoulderRotation: photoData.metrics.shoulder_rotation_score,
       overallScore: photoData.metrics.overall_asymmetry_score,
     };

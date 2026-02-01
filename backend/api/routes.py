@@ -317,7 +317,9 @@ async def analyze_photo(request: PhotoAnalysisRequest):
                 hip_rotation_score=result.metrics.hip_rotation_score,
                 scapula_prominence_diff=result.metrics.scapula_prominence_diff,
                 hai_score=result.metrics.hai_score,
-                overall_asymmetry_score=result.metrics.overall_asymmetry_score
+                overall_asymmetry_score=result.metrics.overall_asymmetry_score,
+                higher_shoulder=result.metrics.higher_shoulder,
+                higher_hip=result.metrics.higher_hip
             ),
             risk_level=risk_level_map[result.risk_level],
             risk_factors=result.risk_factors,
@@ -429,6 +431,25 @@ async def recalculate_metrics(request: RecalculateMetricsRequest):
         score += min(25, (trunk_shift_pct / 5.0) * 25)
         overall_asymmetry_score = min(100, score)
 
+        # Determine which side is higher (from viewer's perspective)
+        # In image coordinates: lower Y = higher position on screen
+        # If shoulder_height_diff_px > 0: MediaPipe left is higher
+        # For BACK PHOTOS, swap to viewer's perspective:
+        # - MediaPipe "left" (subject's left) appears on RIGHT side of image
+        # - MediaPipe "right" (subject's right) appears on LEFT side of image
+        SIDE_THRESHOLD = 0.5  # Threshold in percentage to consider as "different"
+
+        if shoulder_height_diff_pct >= SIDE_THRESHOLD:
+            # Swap: subject's left = viewer's right
+            higher_shoulder = "right" if shoulder_height_diff_px > 0 else "left"
+        else:
+            higher_shoulder = None
+
+        if hip_height_diff_pct >= SIDE_THRESHOLD:
+            higher_hip = "right" if hip_height_diff_px > 0 else "left"
+        else:
+            higher_hip = None
+
         # Create metrics object
         metrics = AnalyzerMetrics(
             shoulder_height_diff_px=round(shoulder_height_diff_px, 1),
@@ -445,7 +466,9 @@ async def recalculate_metrics(request: RecalculateMetricsRequest):
             hip_height_diff_pct=round(hip_height_diff_pct, 1),
             trunk_shift_pct=round(trunk_shift_pct, 1),
             waist_height_diff_pct=round(waist_height_diff_pct, 1),
-            axilla_height_diff_pct=round(axilla_height_diff_pct, 1)
+            axilla_height_diff_pct=round(axilla_height_diff_pct, 1),
+            higher_shoulder=higher_shoulder,
+            higher_hip=higher_hip
         )
 
         # Assess risk level
@@ -469,6 +492,8 @@ async def recalculate_metrics(request: RecalculateMetricsRequest):
             "scapula_prominence_diff": metrics.scapula_prominence_diff,
             "hai_score": metrics.hai_score,
             "overall_asymmetry_score": metrics.overall_asymmetry_score,
+            "higher_shoulder": metrics.higher_shoulder,
+            "higher_hip": metrics.higher_hip,
         }
 
         return {

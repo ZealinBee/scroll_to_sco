@@ -223,11 +223,15 @@ def draw_pose_overlay(
 
     # Draw landmark points with labels
     # Primary landmarks (from MediaPipe)
+    # Note: MediaPipe uses subject's perspective (LEFT_SHOULDER = subject's left)
+    # For back photos, we label from VIEWER's perspective:
+    # - Subject's left shoulder appears on viewer's right → label as "R.Sh"
+    # - Subject's right shoulder appears on viewer's left → label as "L.Sh"
     landmark_info = [
-        (PoseLandmark.LEFT_SHOULDER, left_shoulder, left_shoulder_vis, "L.Sh"),
-        (PoseLandmark.RIGHT_SHOULDER, right_shoulder, right_shoulder_vis, "R.Sh"),
-        (PoseLandmark.LEFT_HIP, left_hip, left_hip_vis, "L.Hip"),
-        (PoseLandmark.RIGHT_HIP, right_hip, right_hip_vis, "R.Hip"),
+        (PoseLandmark.LEFT_SHOULDER, left_shoulder, left_shoulder_vis, "R.Sh"),
+        (PoseLandmark.RIGHT_SHOULDER, right_shoulder, right_shoulder_vis, "L.Sh"),
+        (PoseLandmark.LEFT_HIP, left_hip, left_hip_vis, "R.Hip"),
+        (PoseLandmark.RIGHT_HIP, right_hip, right_hip_vis, "L.Hip"),
     ]
 
     # Derived landmarks (HAI components) - drawn smaller with different style
@@ -273,7 +277,9 @@ def draw_pose_overlay(
         cv2.circle(overlay, point, 3, COLORS["white"], -1)
 
         # Draw label near the point
-        label_offset_x = 15 if "R." in label else -50
+        # Labels with "L." are now on left side of image, offset to the right (toward center)
+        # Labels with "R." are now on right side of image, offset to the left (toward center)
+        label_offset_x = -50 if "R." in label else 15
         label_pos = (point[0] + label_offset_x, point[1] - 10)
         cv2.putText(
             overlay, label,

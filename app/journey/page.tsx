@@ -54,6 +54,8 @@ interface AnalysisData {
     scapula_prominence_diff: number;
     waist_height_diff_pct: number;
     overall_asymmetry_score: number;
+    higher_shoulder?: "left" | "right" | null;
+    higher_hip?: "left" | "right" | null;
   };
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   riskFactors: string[];
@@ -185,27 +187,31 @@ function ExerciseCard({
 
 // Findings Summary Component
 function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
-  const findings: { label: string; value: number; threshold: number; unit: string; severity: string }[] = [];
+  const findings: { label: string; value: number; threshold: number; unit: string; severity: string; sideInfo?: string }[] = [];
 
   if (profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.mild) {
+    const side = profile.higherShoulder;
     findings.push({
       label: "Shoulder height difference",
       value: profile.shoulderHeightDiff,
       threshold: THRESHOLDS.shoulderHeight.moderate,
       unit: "%",
       severity: profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.significant ? "significant" :
-               profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.moderate ? "moderate" : "mild"
+               profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.moderate ? "moderate" : "mild",
+      sideInfo: side ? `${side.charAt(0).toUpperCase() + side.slice(1)} shoulder higher` : undefined
     });
   }
 
   if (profile.hipHeightDiff >= THRESHOLDS.hipHeight.mild) {
+    const side = profile.higherHip;
     findings.push({
       label: "Hip height difference",
       value: profile.hipHeightDiff,
       threshold: THRESHOLDS.hipHeight.moderate,
       unit: "%",
       severity: profile.hipHeightDiff >= THRESHOLDS.hipHeight.significant ? "significant" :
-               profile.hipHeightDiff >= THRESHOLDS.hipHeight.moderate ? "moderate" : "mild"
+               profile.hipHeightDiff >= THRESHOLDS.hipHeight.moderate ? "moderate" : "mild",
+      sideInfo: side ? `${side.charAt(0).toUpperCase() + side.slice(1)} hip higher` : undefined
     });
   }
 
@@ -271,6 +277,9 @@ function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
             <p className="text-lg font-semibold">
               {finding.value.toFixed(1)}{finding.unit}
             </p>
+            {finding.sideInfo && (
+              <p className="text-xs mt-1 opacity-80">{finding.sideInfo}</p>
+            )}
           </div>
         ))}
       </div>
@@ -315,6 +324,7 @@ export default function JourneyPage() {
 
     // Load X-ray data if available
     const storedXray = sessionStorage.getItem("xrayAnalysis");
+    let hasXrayData = false;
     if (storedXray) {
       try {
         const xray = JSON.parse(storedXray);
@@ -326,12 +336,43 @@ export default function JourneyPage() {
           primary_cobb_angle: xray.primary_cobb_angle,
         });
         setAnalysisType("xray");
+        hasXrayData = true;
+
+        // Create synthetic asymmetry profile from X-ray data for exercise recommendations
+        // Map Schroth type and severity to approximate asymmetry metrics
+        const severityMultiplier = xray.severity === "severe" ? 1.5 :
+                                   xray.severity === "moderate" ? 1.0 : 0.6;
+        const cobbAngle = xray.primary_cobb_angle || 15;
+
+        // Generate estimated asymmetry based on curve location and Schroth type
+        const isThoracic = xray.curve_location?.toLowerCase().includes("thoracic");
+        const isLumbar = xray.curve_location?.toLowerCase().includes("lumbar");
+
+        const syntheticMetrics = {
+          shoulder_height_diff_pct: isThoracic ? cobbAngle * 0.3 * severityMultiplier : cobbAngle * 0.15 * severityMultiplier,
+          hip_height_diff_pct: isLumbar ? cobbAngle * 0.25 * severityMultiplier : cobbAngle * 0.1 * severityMultiplier,
+          trunk_shift_pct: cobbAngle * 0.2 * severityMultiplier,
+          shoulder_rotation_score: isThoracic ? 0.3 * severityMultiplier : 0.15 * severityMultiplier,
+          hip_rotation_score: isLumbar ? 0.25 * severityMultiplier : 0.1 * severityMultiplier,
+          scapula_prominence_diff: isThoracic ? 8 * severityMultiplier : 4 * severityMultiplier,
+          waist_height_diff_pct: isLumbar ? cobbAngle * 0.3 * severityMultiplier : cobbAngle * 0.15 * severityMultiplier,
+          overall_asymmetry_score: cobbAngle * 2 * severityMultiplier,
+        };
+
+        const riskLevel = xray.severity === "severe" ? "HIGH" :
+                         xray.severity === "moderate" ? "MEDIUM" : "LOW";
+
+        const profile = createAsymmetryProfile(syntheticMetrics, riskLevel);
+        setAsymmetryProfile(profile);
+
+        const exercises = getRecommendedExercises(profile);
+        setRecommendedExercises(exercises);
       } catch (e) {
         console.error("Failed to parse X-ray data:", e);
       }
     }
 
-    // Load photo analysis data
+    // Load photo analysis data (override X-ray profile if both exist)
     const storedAnalysis = localStorage.getItem("analysisData");
     if (storedAnalysis) {
       const data: AnalysisData = JSON.parse(storedAnalysis);
@@ -345,7 +386,7 @@ export default function JourneyPage() {
       setRecommendedExercises(exercises);
 
       // Set analysis type to photo if not already xray
-      if (!storedXray) {
+      if (!hasXrayData) {
         setAnalysisType("photo");
       }
     }

@@ -193,6 +193,10 @@ class AsymmetryMetrics(BaseModel):
     hai_score: float = Field(0.0, description="Height Asymmetry Index (POTSI: >10 is pathologic)")
     overall_asymmetry_score: float = Field(..., description="Overall asymmetry score (0-100)")
 
+    # Side indicators (which side is higher/more prominent)
+    higher_shoulder: Optional[str] = Field(None, description="Which shoulder is higher: 'left', 'right', or None if equal")
+    higher_hip: Optional[str] = Field(None, description="Which hip is higher: 'left', 'right', or None if equal")
+
 
 class LandmarkPosition(BaseModel):
     """A landmark position for manual adjustment."""
