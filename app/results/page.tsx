@@ -6,8 +6,9 @@ import {
   Ruler, MapPin, ArrowLeftRight, Target, Dumbbell,
   ChevronDown, ChevronUp, RotateCcw, AlertCircle,
   Bone, Clock, LucideIcon, User, Calendar, TrendingUp,
-   Settings, Sparkles, FlipHorizontal2, Camera, Scan,
-  AlertTriangle, CheckCircle2, Activity, Info, Move, Pencil, Check
+  Settings, Sparkles, FlipHorizontal2, Camera, Scan,
+  AlertTriangle, CheckCircle2, Activity, Info, Move, Pencil, Check,
+  ArrowRight
 } from "lucide-react";
 import LandmarkEditor, { createDefaultLandmarks } from "@/app/components/LandmarkEditor";
 
@@ -2122,6 +2123,56 @@ export default function ResultsPage() {
               router.push("/");
             }}
           />
+
+          {/* Start Journey CTA */}
+          <div className="glass p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-[16px] bg-primary/10 flex items-center justify-center">
+                <Dumbbell size={24} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-dark">Ready to improve?</h3>
+                <p className="text-sm text-muted">Start your personalized scoliosis journey</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted leading-relaxed">
+              Begin your journey with exercises, breathing techniques, and progress tracking designed to help improve your posture over time.
+            </p>
+            <button
+              onClick={() => {
+                // Save the photo to progress tracking
+                const photoResult = result as PhotoAnalysisResult;
+                if (photoResult.original_image || photoResult.annotated_image) {
+                  const progressPhotos = JSON.parse(localStorage.getItem("progressPhotos") || "[]");
+                  const newPhoto = {
+                    id: Date.now().toString(),
+                    image: photoResult.original_image || photoResult.annotated_image,
+                    date: new Date().toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric"
+                    }),
+                    notes: "Initial assessment"
+                  };
+                  progressPhotos.unshift(newPhoto);
+                  localStorage.setItem("progressPhotos", JSON.stringify(progressPhotos));
+                }
+                // Save analysis data for personalized exercises
+                localStorage.setItem("analysisData", JSON.stringify({
+                  metrics: photoResult.metrics,
+                  riskLevel: photoResult.risk_level,
+                  riskFactors: photoResult.risk_factors,
+                  recommendations: photoResult.recommendations,
+                  analyzedAt: new Date().toISOString()
+                }));
+                router.push("/journey");
+              }}
+              className="btn btn-primary w-full"
+            >
+              Start Your Journey
+              <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2418,6 +2469,29 @@ export default function ResultsPage() {
             )}
           </>
         )}
+
+        {/* Start Journey CTA */}
+        <div className="glass p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-[16px] bg-primary/10 flex items-center justify-center">
+              <Dumbbell size={24} className="text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-dark">Ready to improve?</h3>
+              <p className="text-sm text-muted">Start your personalized scoliosis journey</p>
+            </div>
+          </div>
+          <p className="text-sm text-muted leading-relaxed">
+            Begin your journey with exercises, breathing techniques, and progress tracking designed to help improve your posture over time.
+          </p>
+          <button
+            onClick={() => router.push("/journey")}
+            className="btn btn-primary w-full"
+          >
+            Start Your Journey
+            <ArrowRight size={18} />
+          </button>
+        </div>
 
         {/* Disclaimer */}
         <div className="glass-subtle p-4 flex gap-3">

@@ -1,0 +1,736 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Dumbbell,
+  Wind,
+  Camera,
+  MessageCircle,
+  Calendar,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Target,
+  AlertCircle,
+  CheckCircle2,
+  Play,
+  RotateCcw,
+  Sparkles,
+  ArrowRight,
+  Info,
+} from "lucide-react";
+import {
+  Exercise,
+  createAsymmetryProfile,
+  getRecommendedExercises,
+  getDailyRoutine,
+  AsymmetryProfile,
+  THRESHOLDS,
+} from "@/app/lib/exercises";
+
+interface ProgressPhoto {
+  id: string;
+  image: string;
+  date: string;
+  notes?: string;
+}
+
+interface AnalysisData {
+  metrics: {
+    shoulder_height_diff_pct: number;
+    hip_height_diff_pct: number;
+    trunk_shift_pct: number;
+    shoulder_rotation_score: number;
+    hip_rotation_score: number;
+    scapula_prominence_diff: number;
+    waist_height_diff_pct: number;
+    overall_asymmetry_score: number;
+  };
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  riskFactors: string[];
+  recommendations: string[];
+  analyzedAt: string;
+}
+
+// Exercise Card Component
+function ExerciseCard({
+  exercise,
+  isExpanded,
+  onToggle,
+  relevantFor,
+}: {
+  exercise: Exercise;
+  isExpanded: boolean;
+  onToggle: () => void;
+  relevantFor?: string[];
+}) {
+  const difficultyColor = {
+    beginner: "bg-primary/10 text-primary",
+    intermediate: "bg-yellow-100 text-yellow-700",
+    advanced: "bg-orange-100 text-orange-700",
+  };
+
+  return (
+    <div className="glass-subtle rounded-[16px] overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Dumbbell size={18} className="text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-dark">{exercise.name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-muted flex items-center gap-1">
+                <Clock size={12} />
+                {exercise.duration}
+              </span>
+              <span className="text-xs text-muted">·</span>
+              <span className="text-xs text-muted">{exercise.repetitions}</span>
+            </div>
+          </div>
+        </div>
+        {isExpanded ? (
+          <ChevronUp size={20} className="text-muted flex-shrink-0" />
+        ) : (
+          <ChevronDown size={20} className="text-muted flex-shrink-0" />
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 space-y-4 border-t border-dark/5 pt-4">
+          {/* Description */}
+          <p className="text-sm text-muted leading-relaxed">
+            {exercise.description}
+          </p>
+
+          {/* Why this exercise */}
+          {relevantFor && relevantFor.length > 0 && (
+            <div className="bg-primary/5 rounded-[12px] p-3 space-y-2">
+              <p className="text-xs font-medium text-primary flex items-center gap-1.5">
+                <Target size={14} />
+                Why this exercise for you
+              </p>
+              <ul className="space-y-1">
+                {relevantFor.map((reason, i) => (
+                  <li key={i} className="text-xs text-dark flex items-start gap-2">
+                    <CheckCircle2 size={12} className="text-primary mt-0.5 flex-shrink-0" />
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Instructions */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-dark">Instructions</p>
+            <ol className="space-y-2">
+              {exercise.instructions.map((step, i) => (
+                <li key={i} className="flex gap-3 text-sm text-muted">
+                  <span className="w-5 h-5 rounded-full bg-dark/5 flex items-center justify-center flex-shrink-0 text-xs text-dark font-medium">
+                    {i + 1}
+                  </span>
+                  <span className="leading-relaxed">{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Tips */}
+          {exercise.tips.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-dark">Tips</p>
+              <ul className="space-y-1.5">
+                {exercise.tips.map((tip, i) => (
+                  <li key={i} className="text-sm text-muted flex items-start gap-2">
+                    <Sparkles size={14} className="text-primary mt-0.5 flex-shrink-0" />
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Meta info */}
+          <div className="flex flex-wrap gap-2 pt-2">
+            <span className={`px-3 py-1 rounded-full text-xs capitalize ${difficultyColor[exercise.difficulty]}`}>
+              {exercise.difficulty}
+            </span>
+            <span className="px-3 py-1 rounded-full bg-dark/5 text-dark text-xs">
+              {exercise.frequency}
+            </span>
+            {exercise.targetAreas.slice(0, 2).map((area) => (
+              <span key={area} className="px-3 py-1 rounded-full bg-dark/5 text-muted text-xs">
+                {area}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Findings Summary Component
+function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
+  const findings: { label: string; value: number; threshold: number; unit: string; severity: string }[] = [];
+
+  if (profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.mild) {
+    findings.push({
+      label: "Shoulder height difference",
+      value: profile.shoulderHeightDiff,
+      threshold: THRESHOLDS.shoulderHeight.moderate,
+      unit: "%",
+      severity: profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.significant ? "significant" :
+               profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.moderate ? "moderate" : "mild"
+    });
+  }
+
+  if (profile.hipHeightDiff >= THRESHOLDS.hipHeight.mild) {
+    findings.push({
+      label: "Hip height difference",
+      value: profile.hipHeightDiff,
+      threshold: THRESHOLDS.hipHeight.moderate,
+      unit: "%",
+      severity: profile.hipHeightDiff >= THRESHOLDS.hipHeight.significant ? "significant" :
+               profile.hipHeightDiff >= THRESHOLDS.hipHeight.moderate ? "moderate" : "mild"
+    });
+  }
+
+  if (profile.trunkShift >= THRESHOLDS.trunkShift.mild) {
+    findings.push({
+      label: "Trunk shift",
+      value: profile.trunkShift,
+      threshold: THRESHOLDS.trunkShift.moderate,
+      unit: "%",
+      severity: profile.trunkShift >= THRESHOLDS.trunkShift.significant ? "significant" :
+               profile.trunkShift >= THRESHOLDS.trunkShift.moderate ? "moderate" : "mild"
+    });
+  }
+
+  if (profile.shoulderRotation >= THRESHOLDS.rotation.mild) {
+    findings.push({
+      label: "Shoulder rotation",
+      value: profile.shoulderRotation * 100,
+      threshold: THRESHOLDS.rotation.moderate * 100,
+      unit: "",
+      severity: profile.shoulderRotation >= THRESHOLDS.rotation.significant ? "significant" :
+               profile.shoulderRotation >= THRESHOLDS.rotation.moderate ? "moderate" : "mild"
+    });
+  }
+
+  if (profile.scapulaProminence >= THRESHOLDS.scapula.mild) {
+    findings.push({
+      label: "Scapula prominence",
+      value: profile.scapulaProminence,
+      threshold: THRESHOLDS.scapula.moderate,
+      unit: "mm",
+      severity: profile.scapulaProminence >= THRESHOLDS.scapula.significant ? "significant" :
+               profile.scapulaProminence >= THRESHOLDS.scapula.moderate ? "moderate" : "mild"
+    });
+  }
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "significant": return "text-red-500 bg-red-50";
+      case "moderate": return "text-yellow-600 bg-yellow-50";
+      default: return "text-primary bg-primary/10";
+    }
+  };
+
+  if (findings.length === 0) {
+    return (
+      <div className="glass-subtle p-4 flex items-center gap-3">
+        <CheckCircle2 size={20} className="text-primary" />
+        <p className="text-sm text-dark">
+          Your measurements are within normal range. These exercises will help maintain good posture.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted">Your exercises target these findings:</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {findings.map((finding) => (
+          <div key={finding.label} className={`rounded-[12px] p-3 ${getSeverityColor(finding.severity)}`}>
+            <p className="text-xs font-medium">{finding.label}</p>
+            <p className="text-lg font-semibold">
+              {finding.value.toFixed(1)}{finding.unit}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function JourneyPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"exercises" | "breathing" | "progress" | "chat">("exercises");
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [asymmetryProfile, setAsymmetryProfile] = useState<AsymmetryProfile | null>(null);
+  const [recommendedExercises, setRecommendedExercises] = useState<Exercise[]>([]);
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [showRoutine, setShowRoutine] = useState(true);
+
+  // Load data on mount
+  useEffect(() => {
+    // Load progress photos
+    const storedPhotos = localStorage.getItem("progressPhotos");
+    if (storedPhotos) {
+      setProgressPhotos(JSON.parse(storedPhotos));
+    }
+
+    // Load analysis data
+    const storedAnalysis = localStorage.getItem("analysisData");
+    if (storedAnalysis) {
+      const data: AnalysisData = JSON.parse(storedAnalysis);
+      setAnalysisData(data);
+
+      // Create asymmetry profile and get recommendations
+      const profile = createAsymmetryProfile(data.metrics, data.riskLevel);
+      setAsymmetryProfile(profile);
+
+      const exercises = getRecommendedExercises(profile);
+      setRecommendedExercises(exercises);
+    }
+  }, []);
+
+  // Get daily routine
+  const dailyRoutine = asymmetryProfile ? getDailyRoutine(asymmetryProfile) : null;
+
+  // Get relevance reasons for an exercise
+  const getRelevanceReasons = (exercise: Exercise): string[] => {
+    if (!asymmetryProfile) return [];
+    const reasons: string[] = [];
+
+    for (const targetType of exercise.targetAsymmetries) {
+      switch (targetType) {
+        case "shoulder_height":
+          if (asymmetryProfile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.mild) {
+            reasons.push(`Helps correct ${asymmetryProfile.shoulderHeightDiff.toFixed(1)}% shoulder height difference`);
+          }
+          break;
+        case "hip_height":
+          if (asymmetryProfile.hipHeightDiff >= THRESHOLDS.hipHeight.mild) {
+            reasons.push(`Addresses ${asymmetryProfile.hipHeightDiff.toFixed(1)}% hip height asymmetry`);
+          }
+          break;
+        case "trunk_shift":
+          if (asymmetryProfile.trunkShift >= THRESHOLDS.trunkShift.mild) {
+            reasons.push(`Corrects ${asymmetryProfile.trunkShift.toFixed(1)}% lateral trunk shift`);
+          }
+          break;
+        case "shoulder_rotation":
+          if (asymmetryProfile.shoulderRotation >= THRESHOLDS.rotation.mild) {
+            reasons.push("Improves shoulder rotation symmetry");
+          }
+          break;
+        case "scapula_prominence":
+          if (asymmetryProfile.scapulaProminence >= THRESHOLDS.scapula.mild) {
+            reasons.push("Reduces scapular prominence (winging)");
+          }
+          break;
+        case "hip_rotation":
+          if (asymmetryProfile.hipRotation >= THRESHOLDS.rotation.mild) {
+            reasons.push("Addresses hip rotation asymmetry");
+          }
+          break;
+        case "waist_asymmetry":
+          if (asymmetryProfile.waistAsymmetry >= THRESHOLDS.waist.mild) {
+            reasons.push("Improves waist symmetry");
+          }
+          break;
+      }
+    }
+
+    return reasons;
+  };
+
+  const tabs = [
+    { id: "exercises" as const, label: "Exercises", icon: Dumbbell },
+    { id: "breathing" as const, label: "Breathing", icon: Wind },
+    { id: "progress" as const, label: "Progress", icon: Camera },
+    { id: "chat" as const, label: "AI Chat", icon: MessageCircle },
+  ];
+
+  return (
+    <div className="min-h-screen px-4 py-8">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex items-center justify-between">
+          <button
+            onClick={() => router.push("/")}
+            className="btn btn-ghost"
+          >
+            <RotateCcw size={18} />
+            New Analysis
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+            <Calendar size={14} />
+            Your Journey
+          </div>
+        </header>
+
+        {/* Title */}
+        <div className="glass p-6 text-center space-y-3">
+          <div className="w-16 h-16 mx-auto rounded-[20px] bg-primary/10 flex items-center justify-center">
+            <Dumbbell size={32} className="text-primary" />
+          </div>
+          <h1 className="text-2xl font-semibold text-dark">Your Posture Journey</h1>
+          <p className="text-muted text-sm leading-relaxed max-w-md mx-auto">
+            {analysisData
+              ? "Personalized exercises based on your posture analysis."
+              : "Track your progress, practice exercises, and work towards a healthier spine."}
+          </p>
+          {analysisData && (
+            <p className="text-xs text-muted">
+              Last analyzed: {new Date(analysisData.analyzedAt).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric"
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="glass p-1.5 flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-3 px-3 rounded-[12px] text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                  activeTab === tab.id
+                    ? "bg-primary text-white"
+                    : "text-dark hover:bg-primary/10"
+                }`}
+              >
+                <Icon size={16} />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab Content */}
+        <div className="space-y-6">
+          {activeTab === "exercises" && (
+            <>
+              {/* Findings Summary */}
+              {asymmetryProfile && (
+                <div className="glass p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                      <Target size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-dark">Your Focus Areas</h2>
+                      <p className="text-xs text-muted">Based on your posture analysis</p>
+                    </div>
+                  </div>
+                  <FindingsSummary profile={asymmetryProfile} />
+                </div>
+              )}
+
+              {/* Daily Routine */}
+              {dailyRoutine && recommendedExercises.length > 0 && (
+                <div className="glass p-6 space-y-4">
+                  <button
+                    onClick={() => setShowRoutine(!showRoutine)}
+                    className="w-full flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                        <Play size={20} className="text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <h2 className="text-lg font-semibold text-dark">Daily Routine</h2>
+                        <p className="text-xs text-muted">
+                          {dailyRoutine.warmup.length + dailyRoutine.main.length + dailyRoutine.cooldown.length} exercises · ~{dailyRoutine.estimatedTime} min
+                        </p>
+                      </div>
+                    </div>
+                    {showRoutine ? (
+                      <ChevronUp size={20} className="text-muted" />
+                    ) : (
+                      <ChevronDown size={20} className="text-muted" />
+                    )}
+                  </button>
+
+                  {showRoutine && (
+                    <div className="space-y-4 pt-2">
+                      {/* Warm-up */}
+                      {dailyRoutine.warmup.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-xs font-medium text-muted uppercase tracking-wider">Warm-up</p>
+                          {dailyRoutine.warmup.map((exercise) => (
+                            <ExerciseCard
+                              key={exercise.id}
+                              exercise={exercise}
+                              isExpanded={expandedExercise === exercise.id}
+                              onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
+                              relevantFor={getRelevanceReasons(exercise)}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Main Exercises */}
+                      {dailyRoutine.main.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-xs font-medium text-muted uppercase tracking-wider">Main Exercises</p>
+                          {dailyRoutine.main.map((exercise) => (
+                            <ExerciseCard
+                              key={exercise.id}
+                              exercise={exercise}
+                              isExpanded={expandedExercise === exercise.id}
+                              onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
+                              relevantFor={getRelevanceReasons(exercise)}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Cool-down */}
+                      {dailyRoutine.cooldown.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-xs font-medium text-muted uppercase tracking-wider">Cool-down & Stretches</p>
+                          {dailyRoutine.cooldown.map((exercise) => (
+                            <ExerciseCard
+                              key={exercise.id}
+                              exercise={exercise}
+                              isExpanded={expandedExercise === exercise.id}
+                              onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
+                              relevantFor={getRelevanceReasons(exercise)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* All Recommended Exercises */}
+              {recommendedExercises.length > 0 ? (
+                <div className="glass p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                      <Dumbbell size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-dark">All Recommended Exercises</h2>
+                      <p className="text-xs text-muted">{recommendedExercises.length} exercises matched to your analysis</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {recommendedExercises.map((exercise) => (
+                      <ExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        isExpanded={expandedExercise === exercise.id}
+                        onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
+                        relevantFor={getRelevanceReasons(exercise)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="glass p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                      <Dumbbell size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-dark">Exercises</h2>
+                      <p className="text-xs text-muted">Personalized exercises for your posture</p>
+                    </div>
+                  </div>
+
+                  <div className="glass-subtle p-8 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
+                      <Camera size={24} className="text-muted" />
+                    </div>
+                    <p className="text-muted text-sm">No analysis data found</p>
+                    <p className="text-xs text-muted">
+                      Complete a posture analysis to get personalized exercise recommendations.
+                    </p>
+                    <button
+                      onClick={() => router.push("/")}
+                      className="btn btn-primary mt-4"
+                    >
+                      Start Analysis
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Research Note */}
+              <div className="glass-subtle p-4 flex gap-3">
+                <Info size={18} className="text-muted flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    These exercises are based on the Schroth Method and postural correction research.
+                    Consistency is key - studies show that 90-180 minutes per week of scoliosis-specific
+                    exercises can lead to measurable improvements. Always consult with a healthcare provider
+                    before starting a new exercise program.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === "breathing" && (
+            <div className="glass p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                  <Wind size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-dark">Breathing Exercises</h2>
+                  <p className="text-xs text-muted">Rotational breathing techniques for scoliosis</p>
+                </div>
+              </div>
+
+              {/* Schroth Breathing if there's rotation */}
+              {asymmetryProfile && (asymmetryProfile.shoulderRotation >= THRESHOLDS.rotation.mild ||
+                                    asymmetryProfile.scapulaProminence >= THRESHOLDS.scapula.mild) ? (
+                <div className="space-y-4">
+                  <div className="glass-subtle p-4 border-l-4 border-primary">
+                    <p className="text-sm text-dark leading-relaxed">
+                      Based on your analysis showing rotational asymmetry, Schroth rotational breathing
+                      is particularly important for you. This technique helps de-rotate the spine and
+                      expand collapsed areas of the ribcage.
+                    </p>
+                  </div>
+
+                  {recommendedExercises
+                    .filter(e => e.id === "rotational-breathing")
+                    .map(exercise => (
+                      <ExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        isExpanded={expandedExercise === exercise.id}
+                        onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
+                        relevantFor={getRelevanceReasons(exercise)}
+                      />
+                    ))}
+                </div>
+              ) : (
+                <div className="glass-subtle p-8 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
+                    <Wind size={24} className="text-muted" />
+                  </div>
+                  <p className="text-muted text-sm">Breathing exercises coming soon</p>
+                  <p className="text-xs text-muted">
+                    This section will guide you through Schroth rotational breathing techniques.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "progress" && (
+            <div className="glass p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                    <Camera size={20} className="text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-dark">Progress Tracking</h2>
+                    <p className="text-xs text-muted">Track your posture improvements over time</p>
+                  </div>
+                </div>
+                <button className="btn btn-secondary text-sm">
+                  <Plus size={16} />
+                  Add Photo
+                </button>
+              </div>
+
+              {progressPhotos.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {progressPhotos.map((photo) => (
+                    <div key={photo.id} className="glass-subtle rounded-[16px] overflow-hidden">
+                      <img
+                        src={photo.image}
+                        alt={`Progress photo from ${photo.date}`}
+                        className="w-full h-40 object-cover"
+                      />
+                      <div className="p-3 space-y-1">
+                        <p className="text-xs font-medium text-dark">{photo.date}</p>
+                        {photo.notes && (
+                          <p className="text-xs text-muted truncate">{photo.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="glass-subtle p-8 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
+                    <Camera size={24} className="text-muted" />
+                  </div>
+                  <p className="text-muted text-sm">No progress photos yet</p>
+                  <p className="text-xs text-muted">
+                    Take regular photos to track your posture improvements over time.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "chat" && (
+            <div className="glass p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                  <MessageCircle size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-dark">Chat with AI</h2>
+                  <p className="text-xs text-muted">Get answers to your scoliosis questions</p>
+                </div>
+              </div>
+
+              <div className="glass-subtle p-8 text-center space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
+                  <MessageCircle size={24} className="text-muted" />
+                </div>
+                <p className="text-muted text-sm">AI chat coming soon</p>
+                <p className="text-xs text-muted">
+                  Ask questions about exercises, techniques, and scoliosis management.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Motivation Card */}
+        <div className="glass-subtle p-4 flex gap-3">
+          <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Calendar size={18} className="text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-dark">Consistency is key</p>
+            <p className="text-xs text-muted leading-relaxed">
+              Research shows that regular practice of scoliosis-specific exercises can lead to measurable improvements in posture over time. Aim for daily practice of your personalized routine.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
