@@ -7,7 +7,9 @@ from .schemas import (
     AnalysisRequest, AnalysisResponse, ErrorResponse, HealthResponse,
     Severity, ImageOrientation,
     OrientationDetectionRequest, OrientationDetectionResponse,
-    OrientationDetectionResult
+    OrientationDetectionResult,
+    PhotoAnalysisRequest, PhotoAnalysisResponse, AsymmetryMetrics, RiskLevel,
+    LandmarkPosition, LandmarkPositions, RecalculateMetricsRequest
 )
 from scoliovis.model import get_model
 from scoliovis.preprocessing import image_to_numpy
@@ -197,3 +199,289 @@ async def health_check():
         status="healthy" if model.is_loaded() else "initializing",
         model_loaded=model.is_loaded()
     )
+
+
+@router.post("/analyze-photo", response_model=PhotoAnalysisResponse)
+async def analyze_photo(request: PhotoAnalysisRequest):
+    """
+    Analyze a back photo for scoliosis screening indicators.
+
+    This is a SCREENING TOOL ONLY, not a diagnostic tool.
+    It uses pose estimation to detect postural asymmetries that may indicate scoliosis.
+
+    Returns:
+    - Asymmetry metrics (shoulder/hip height differences, trunk shift, rotation)
+    - Risk level assessment (LOW, MEDIUM, HIGH)
+    - Human-readable risk factors
+    - Recommendations based on findings
+    - Annotated image with pose overlay
+    """
+    from photo_analysis import (
+        analyze_back_photo,
+        validate_photo_for_analysis,
+        draw_pose_overlay
+    )
+    from photo_analysis.visualization import image_to_base64
+    from photo_analysis.mediapipe_analyzer import RiskLevel as AnalyzerRiskLevel
+
+    start_time = time.time()
+
+    try:
+        # 1. Validate and decode image
+        image = validate_image(request.image)
+
+        # 2. Validate photo is suitable for analysis
+        validation_result = validate_photo_for_analysis(image)
+        if not validation_result.is_valid:
+            raise ValidationError(
+                message=validation_result.error_message or "Invalid photo",
+                error_code=ErrorCodes.INVALID_IMAGE_FORMAT
+            )
+
+        # 3. Run analysis
+        result = analyze_back_photo(image)
+
+        # 4. Generate annotated image
+        annotated_np = draw_pose_overlay(
+            image,
+            result.landmarks,
+            result.metrics,
+            result.risk_level
+        )
+        annotated_base64 = image_to_base64(annotated_np)
+
+        # 5. Calculate processing time
+        processing_time = (time.time() - start_time) * 1000
+
+        # 6. Convert risk level enum
+        risk_level_map = {
+            AnalyzerRiskLevel.LOW: RiskLevel.LOW,
+            AnalyzerRiskLevel.MEDIUM: RiskLevel.MEDIUM,
+            AnalyzerRiskLevel.HIGH: RiskLevel.HIGH,
+        }
+
+        # 7. Extract landmark positions for manual adjustment
+        from photo_analysis.mediapipe_analyzer import (
+            PoseLandmark, estimate_derived_landmarks
+        )
+
+        derived = estimate_derived_landmarks(result.landmarks)
+        landmark_positions = LandmarkPositions(
+            left_shoulder=LandmarkPosition(
+                x=result.landmarks[PoseLandmark.LEFT_SHOULDER].x,
+                y=result.landmarks[PoseLandmark.LEFT_SHOULDER].y
+            ),
+            right_shoulder=LandmarkPosition(
+                x=result.landmarks[PoseLandmark.RIGHT_SHOULDER].x,
+                y=result.landmarks[PoseLandmark.RIGHT_SHOULDER].y
+            ),
+            left_hip=LandmarkPosition(
+                x=result.landmarks[PoseLandmark.LEFT_HIP].x,
+                y=result.landmarks[PoseLandmark.LEFT_HIP].y
+            ),
+            right_hip=LandmarkPosition(
+                x=result.landmarks[PoseLandmark.RIGHT_HIP].x,
+                y=result.landmarks[PoseLandmark.RIGHT_HIP].y
+            ),
+            left_axilla=LandmarkPosition(
+                x=derived.left_axilla[0],
+                y=derived.left_axilla[1]
+            ),
+            right_axilla=LandmarkPosition(
+                x=derived.right_axilla[0],
+                y=derived.right_axilla[1]
+            ),
+            left_waist=LandmarkPosition(
+                x=derived.left_waist[0],
+                y=derived.left_waist[1]
+            ),
+            right_waist=LandmarkPosition(
+                x=derived.right_waist[0],
+                y=derived.right_waist[1]
+            ),
+        )
+
+        # 8. Encode original image for landmark editor
+        original_base64 = image_to_base64(np.array(image))
+
+        return PhotoAnalysisResponse(
+            success=True,
+            image_id=str(uuid.uuid4()),
+            metrics=AsymmetryMetrics(
+                shoulder_height_diff_pct=result.metrics.shoulder_height_diff_pct,
+                hip_height_diff_pct=result.metrics.hip_height_diff_pct,
+                trunk_shift_pct=result.metrics.trunk_shift_pct,
+                waist_height_diff_pct=result.metrics.waist_height_diff_pct,
+                axilla_height_diff_pct=result.metrics.axilla_height_diff_pct,
+                shoulder_rotation_score=result.metrics.shoulder_rotation_score,
+                hip_rotation_score=result.metrics.hip_rotation_score,
+                scapula_prominence_diff=result.metrics.scapula_prominence_diff,
+                hai_score=result.metrics.hai_score,
+                overall_asymmetry_score=result.metrics.overall_asymmetry_score
+            ),
+            risk_level=risk_level_map[result.risk_level],
+            risk_factors=result.risk_factors,
+            recommendations=result.recommendations,
+            annotated_image=annotated_base64,
+            original_image=original_base64,
+            landmarks=landmark_positions,
+            image_width=image.width,
+            image_height=image.height,
+            landmark_confidence=round(result.landmark_confidence, 3),
+            processing_time_ms=round(processing_time, 2)
+        )
+
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail={
+            "error": e.message,
+            "error_code": e.error_code
+        })
+
+    except ValueError as e:
+        # From analyze_back_photo when no pose detected
+        raise HTTPException(status_code=400, detail={
+            "error": str(e),
+            "error_code": ErrorCodes.NO_SPINE_DETECTED
+        })
+
+    except Exception as e:
+        print(f"Photo analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail={
+            "error": f"Photo analysis failed: {str(e)}",
+            "error_code": ErrorCodes.MODEL_ERROR
+        })
+
+
+@router.post("/recalculate-metrics")
+async def recalculate_metrics(request: RecalculateMetricsRequest):
+    """
+    Recalculate asymmetry metrics from manually adjusted landmark positions.
+
+    This endpoint allows users to correct landmark positions and get updated measurements.
+    """
+    from photo_analysis.mediapipe_analyzer import (
+        Landmark, AsymmetryMetrics as AnalyzerMetrics,
+        assess_risk_level, PoseLandmark
+    )
+    from photo_analysis.mediapipe_analyzer import RiskLevel as AnalyzerRiskLevel
+
+    try:
+        lm = request.landmarks
+        w = request.image_width
+        h = request.image_height
+
+        # ============================================================
+        # Calculate metrics from manually adjusted landmarks
+        # Using percentage-based measurements (camera-distance independent)
+        # ============================================================
+
+        # Height differences (in pixels)
+        shoulder_height_diff_px = (lm.right_shoulder.y - lm.left_shoulder.y) * h
+        hip_height_diff_px = (lm.right_hip.y - lm.left_hip.y) * h
+        waist_height_diff_px = (lm.right_waist.y - lm.left_waist.y) * h
+        axilla_height_diff_px = (lm.right_axilla.y - lm.left_axilla.y) * h
+
+        # Trunk shift
+        shoulder_mid_x = (lm.left_shoulder.x + lm.right_shoulder.x) / 2
+        hip_mid_x = (lm.left_hip.x + lm.right_hip.x) / 2
+        trunk_shift_px = (shoulder_mid_x - hip_mid_x) * w
+
+        # Reference measurements
+        torso_height_px = abs(
+            ((lm.left_hip.y + lm.right_hip.y) / 2) -
+            ((lm.left_shoulder.y + lm.right_shoulder.y) / 2)
+        ) * h
+        shoulder_width_px = abs(lm.right_shoulder.x - lm.left_shoulder.x) * w
+
+        # Calculate percentages (camera-distance independent)
+        if torso_height_px > 0:
+            shoulder_height_diff_pct = (abs(shoulder_height_diff_px) / torso_height_px) * 100
+            hip_height_diff_pct = (abs(hip_height_diff_px) / torso_height_px) * 100
+            waist_height_diff_pct = (abs(waist_height_diff_px) / torso_height_px) * 100
+            axilla_height_diff_pct = (abs(axilla_height_diff_px) / torso_height_px) * 100
+        else:
+            shoulder_height_diff_pct = 0.0
+            hip_height_diff_pct = 0.0
+            waist_height_diff_pct = 0.0
+            axilla_height_diff_pct = 0.0
+
+        if shoulder_width_px > 0:
+            trunk_shift_pct = (abs(trunk_shift_px) / shoulder_width_px) * 100
+        else:
+            trunk_shift_pct = 0.0
+
+        # HAI calculation
+        if torso_height_px > 0:
+            total_height_asymmetry = (
+                abs(shoulder_height_diff_px) +
+                abs(axilla_height_diff_px) +
+                abs(waist_height_diff_px)
+            )
+            hai_score = min(100, (total_height_asymmetry / torso_height_px) * 100)
+        else:
+            hai_score = 0.0
+
+        # Overall asymmetry score (weighted, using percentages)
+        score = 0.0
+        score += min(20, (shoulder_height_diff_pct / 2.5) * 20)
+        score += min(20, (axilla_height_diff_pct / 2.5) * 20)
+        score += min(20, (waist_height_diff_pct / 2.5) * 20)
+        score += min(25, (trunk_shift_pct / 5.0) * 25)
+        overall_asymmetry_score = min(100, score)
+
+        # Create metrics object
+        metrics = AnalyzerMetrics(
+            shoulder_height_diff_px=round(shoulder_height_diff_px, 1),
+            hip_height_diff_px=round(hip_height_diff_px, 1),
+            trunk_shift_px=round(trunk_shift_px, 1),
+            waist_height_diff_px=round(waist_height_diff_px, 1),
+            axilla_height_diff_px=round(axilla_height_diff_px, 1),
+            scapula_prominence_diff=0.0,  # Can't calculate from 2D positions
+            shoulder_rotation_score=0.0,  # Can't calculate from 2D positions
+            hip_rotation_score=0.0,  # Can't calculate from 2D positions
+            hai_score=round(hai_score, 1),
+            overall_asymmetry_score=round(overall_asymmetry_score, 1),
+            shoulder_height_diff_pct=round(shoulder_height_diff_pct, 1),
+            hip_height_diff_pct=round(hip_height_diff_pct, 1),
+            trunk_shift_pct=round(trunk_shift_pct, 1),
+            waist_height_diff_pct=round(waist_height_diff_pct, 1),
+            axilla_height_diff_pct=round(axilla_height_diff_pct, 1)
+        )
+
+        # Assess risk level
+        risk_level, risk_factors, recommendations = assess_risk_level(metrics)
+
+        # Convert risk level enum
+        risk_level_map = {
+            AnalyzerRiskLevel.LOW: RiskLevel.LOW,
+            AnalyzerRiskLevel.MEDIUM: RiskLevel.MEDIUM,
+            AnalyzerRiskLevel.HIGH: RiskLevel.HIGH,
+        }
+
+        response_metrics = {
+            "shoulder_height_diff_pct": metrics.shoulder_height_diff_pct,
+            "hip_height_diff_pct": metrics.hip_height_diff_pct,
+            "trunk_shift_pct": metrics.trunk_shift_pct,
+            "waist_height_diff_pct": metrics.waist_height_diff_pct,
+            "axilla_height_diff_pct": metrics.axilla_height_diff_pct,
+            "shoulder_rotation_score": metrics.shoulder_rotation_score,
+            "hip_rotation_score": metrics.hip_rotation_score,
+            "scapula_prominence_diff": metrics.scapula_prominence_diff,
+            "hai_score": metrics.hai_score,
+            "overall_asymmetry_score": metrics.overall_asymmetry_score,
+        }
+
+        return {
+            "success": True,
+            "metrics": response_metrics,
+            "risk_level": risk_level_map[risk_level].value,  # Convert enum to string
+            "risk_factors": risk_factors,
+            "recommendations": recommendations
+        }
+
+    except Exception as e:
+        print(f"Recalculate metrics error: {str(e)}")
+        raise HTTPException(status_code=500, detail={
+            "error": f"Failed to recalculate metrics: {str(e)}",
+            "error_code": "CALCULATION_ERROR"
+        })

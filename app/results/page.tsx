@@ -6,8 +6,10 @@ import {
   Ruler, MapPin, ArrowLeftRight, Target, Dumbbell,
   ChevronDown, ChevronUp, RotateCcw, AlertCircle,
   Bone, Clock, LucideIcon, User, Calendar, TrendingUp,
-  Settings, Sparkles, FlipHorizontal2
+   Settings, Sparkles, FlipHorizontal2, Camera, Scan,
+  AlertTriangle, CheckCircle2, Activity, Info, Move, Pencil, Check
 } from "lucide-react";
+import LandmarkEditor, { createDefaultLandmarks } from "@/app/components/LandmarkEditor";
 
 // Types matching backend schema
 interface Keypoint {
@@ -63,6 +65,58 @@ interface AnalysisResult {
   processing_time_ms: number;
   orientation_used: "standard" | "flipped" | "unknown";
   orientation_confidence: number;
+  type?: "xray" | "photo";
+}
+
+// Photo Analysis Types
+interface AsymmetryMetrics {
+  // Primary measurements (as % of torso height)
+  shoulder_height_diff_pct: number;
+  hip_height_diff_pct: number;
+  trunk_shift_pct: number;
+  // HAI component measurements (as % of torso height)
+  waist_height_diff_pct: number;
+  axilla_height_diff_pct: number;
+  // Rotation scores (0-1 scale)
+  shoulder_rotation_score: number;
+  hip_rotation_score: number;
+  scapula_prominence_diff: number;
+  // Composite scores
+  hai_score: number;  // Height Asymmetry Index (POTSI: >10 is pathologic)
+  overall_asymmetry_score: number;
+}
+
+interface LandmarkPosition {
+  x: number;
+  y: number;
+}
+
+interface LandmarkPositions {
+  left_shoulder: LandmarkPosition;
+  right_shoulder: LandmarkPosition;
+  left_hip: LandmarkPosition;
+  right_hip: LandmarkPosition;
+  left_axilla: LandmarkPosition;
+  right_axilla: LandmarkPosition;
+  left_waist: LandmarkPosition;
+  right_waist: LandmarkPosition;
+}
+
+interface PhotoAnalysisResult {
+  success: boolean;
+  image_id: string;
+  metrics: AsymmetryMetrics;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  risk_factors: string[];
+  recommendations: string[];
+  annotated_image: string;
+  original_image?: string;
+  landmarks?: LandmarkPositions;
+  image_width?: number;
+  image_height?: number;
+  landmark_confidence: number;
+  processing_time_ms: number;
+  type: "photo";
 }
 
 interface UserProfile {
@@ -1189,29 +1243,804 @@ function PredictionDisplay({
   );
 }
 
+// Photo Analysis Results Component
+function PhotoResultsDisplay({ result: initialResult, onNewAnalysis }: { result: PhotoAnalysisResult; onNewAnalysis: () => void }) {
+  const [result, setResult] = useState(initialResult);
+  const [isEditingLandmarks, setIsEditingLandmarks] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Handle saving adjusted landmarks
+  const handleSaveLandmarks = async (landmarks: { id: string; x: number; y: number }[]) => {
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    if (!result.image_width || !result.image_height) {
+      setSaveError("Missing image dimensions. Please try re-uploading the photo.");
+      return;
+    }
+
+    setIsRecalculating(true);
+
+    // Convert landmarks array to LandmarkPositions object
+    const landmarkMap: Record<string, { x: number; y: number }> = {};
+    landmarks.forEach((lm) => {
+      landmarkMap[lm.id] = { x: lm.x, y: lm.y };
+    });
+
+    try {
+      const response = await fetch("/api/recalculate-metrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          landmarks: {
+            left_shoulder: landmarkMap.left_shoulder,
+            right_shoulder: landmarkMap.right_shoulder,
+            left_hip: landmarkMap.left_hip,
+            right_hip: landmarkMap.right_hip,
+            left_axilla: landmarkMap.left_axilla,
+            right_axilla: landmarkMap.right_axilla,
+            left_waist: landmarkMap.left_waist,
+            right_waist: landmarkMap.right_waist,
+          },
+          image_width: result.image_width,
+          image_height: result.image_height,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update result with new metrics
+        setResult((prev) => ({
+          ...prev,
+          metrics: data.metrics,
+          risk_level: data.risk_level,
+          risk_factors: data.risk_factors,
+          recommendations: data.recommendations,
+          landmarks: {
+            left_shoulder: landmarkMap.left_shoulder,
+            right_shoulder: landmarkMap.right_shoulder,
+            left_hip: landmarkMap.left_hip,
+            right_hip: landmarkMap.right_hip,
+            left_axilla: landmarkMap.left_axilla,
+            right_axilla: landmarkMap.right_axilla,
+            left_waist: landmarkMap.left_waist,
+            right_waist: landmarkMap.right_waist,
+          },
+        }));
+        setSaveSuccess(true);
+        setIsEditingLandmarks(false);
+      } else {
+        setSaveError(data.error || "Failed to recalculate metrics. Please try again.");
+        console.error("Failed to recalculate:", data.error);
+      }
+    } catch (error) {
+      setSaveError("Connection error. Make sure the backend is running.");
+      console.error("Error recalculating metrics:", error);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  // Create landmark points for editor
+  const editorLandmarks = result.landmarks
+    ? createDefaultLandmarks({
+        left_shoulder: result.landmarks.left_shoulder,
+        right_shoulder: result.landmarks.right_shoulder,
+        left_hip: result.landmarks.left_hip,
+        right_hip: result.landmarks.right_hip,
+        left_axilla: result.landmarks.left_axilla,
+        right_axilla: result.landmarks.right_axilla,
+        left_waist: result.landmarks.left_waist,
+        right_waist: result.landmarks.right_waist,
+      })
+    : [];
+
+  const getRiskColor = (risk: string) => {
+    switch (risk) {
+      case "LOW": return "text-primary";
+      case "MEDIUM": return "text-yellow-600";
+      case "HIGH": return "text-red-500";
+      default: return "text-dark";
+    }
+  };
+
+  const getRiskBgColor = (risk: string) => {
+    switch (risk) {
+      case "LOW": return "bg-primary/10";
+      case "MEDIUM": return "bg-yellow-100";
+      case "HIGH": return "bg-red-100";
+      default: return "bg-dark/5";
+    }
+  };
+
+  const getRiskIcon = (risk: string) => {
+    switch (risk) {
+      case "LOW": return <CheckCircle2 size={24} className="text-primary" />;
+      case "MEDIUM": return <AlertTriangle size={24} className="text-yellow-600" />;
+      case "HIGH": return <AlertCircle size={24} className="text-red-500" />;
+      default: return <Info size={24} className="text-muted" />;
+    }
+  };
+
+  const getRiskLabel = (risk: string) => {
+    switch (risk) {
+      case "LOW": return "Low Concern";
+      case "MEDIUM": return "Further Evaluation Suggested";
+      case "HIGH": return "Clinical Evaluation Recommended";
+      default: return risk;
+    }
+  };
+
+  const getMetricStatus = (value: number, thresholdMild: number, thresholdSignificant: number) => {
+    if (value > thresholdSignificant) return "significant";
+    if (value > thresholdMild) return "elevated";
+    return "normal";
+  };
+
+  const getMetricColor = (status: string) => {
+    switch (status) {
+      case "significant": return "text-red-500";
+      case "elevated": return "text-yellow-600";
+      default: return "text-dark";
+    }
+  };
+
+  const getMetricBadge = (status: string) => {
+    switch (status) {
+      case "significant": return { text: "Above clinical threshold", color: "bg-red-100 text-red-700" };
+      case "elevated": return { text: "Mild elevation", color: "bg-yellow-100 text-yellow-700" };
+      default: return { text: "Within normal range", color: "bg-primary/10 text-primary" };
+    }
+  };
+
+  // Parse clinical findings from risk_factors
+  // Format: "⚠️ Measurement: Xmm (SEVERITY)" followed by "   → Clinical context"
+  const parsedFindings: { measurement: string; value: string; severity: string; context: string }[] = [];
+
+  for (let i = 0; i < result.risk_factors.length; i++) {
+    const line = result.risk_factors[i];
+    if (line.startsWith("   →")) {
+      // This is context for the previous finding
+      if (parsedFindings.length > 0) {
+        parsedFindings[parsedFindings.length - 1].context = line.replace("   → ", "");
+      }
+    } else {
+      // This is a new finding - parse it
+      const match = line.match(/^([⚠️◐○✓])\s*(.+?):\s*(\d+(?:\.\d+)?)(mm|ratio)\s*\((\w+)\)$/);
+      if (match) {
+        parsedFindings.push({
+          measurement: match[2],
+          value: match[3] + match[4],
+          severity: match[5].toLowerCase(),
+          context: ""
+        });
+      } else {
+        // Fallback for unstructured findings
+        parsedFindings.push({
+          measurement: line.replace(/^[⚠️◐○✓]\s*/, ""),
+          value: "",
+          severity: "normal",
+          context: ""
+        });
+      }
+    }
+  }
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case "significant": return <AlertCircle size={16} className="text-red-500" />;
+      case "moderate": return <AlertTriangle size={16} className="text-yellow-600" />;
+      case "mild": return <Info size={16} className="text-primary" />;
+      default: return <CheckCircle2 size={16} className="text-primary" />;
+    }
+  };
+
+  const getSeverityBg = (severity: string) => {
+    switch (severity) {
+      case "significant": return "border-l-red-500 bg-red-50";
+      case "moderate": return "border-l-yellow-500 bg-yellow-50";
+      case "mild": return "border-l-primary bg-primary/5";
+      default: return "border-l-primary bg-primary/5";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Disclaimer Banner */}
+      <div className="glass p-4 border-l-4 border-primary">
+        <div className="flex gap-3">
+          <Info size={20} className="text-primary flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-dark">Postural Screening Tool</p>
+            <p className="text-xs text-muted leading-relaxed">
+              This analysis uses pose estimation to detect postural asymmetries associated with scoliosis.
+              It cannot measure spinal curvature (Cobb angle) - only X-rays can do that.
+              Results should be interpreted by a healthcare professional.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Annotated Image */}
+      <div className="glass p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+              <Camera size={20} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-dark">Postural Analysis</h2>
+              <p className="text-xs text-muted">Landmark detection and asymmetry measurement</p>
+            </div>
+          </div>
+
+          {/* Edit Landmarks Button */}
+          {result.landmarks && result.original_image && !isEditingLandmarks && (
+            <button
+              onClick={() => {
+                setSaveError(null);
+                setSaveSuccess(false);
+                setIsEditingLandmarks(true);
+              }}
+              className="btn btn-ghost text-sm"
+            >
+              <Pencil size={16} />
+              Adjust Points
+            </button>
+          )}
+        </div>
+
+        {/* Error/Success Messages */}
+        {saveError && (
+          <div className="glass-subtle p-4 border-l-4 border-red-500 flex items-start gap-3">
+            <AlertTriangle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-dark">Failed to Save</p>
+              <p className="text-xs text-muted">{saveError}</p>
+            </div>
+          </div>
+        )}
+
+        {saveSuccess && !isEditingLandmarks && (
+          <div className="glass-subtle p-4 border-l-4 border-primary flex items-start gap-3">
+            <Check size={20} className="text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-dark">Landmarks Updated</p>
+              <p className="text-xs text-muted">Metrics have been recalculated based on your adjustments.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Landmark Editor or Annotated Image */}
+        {isEditingLandmarks && result.original_image && editorLandmarks.length > 0 ? (
+          <LandmarkEditor
+            imageUrl={result.original_image}
+            initialLandmarks={editorLandmarks}
+            onSave={handleSaveLandmarks}
+            onCancel={() => setIsEditingLandmarks(false)}
+          />
+        ) : (
+          <div className="relative rounded-[16px] overflow-hidden bg-dark/5">
+            <img
+              src={result.annotated_image}
+              alt="Analyzed back photo with pose overlay"
+              className="w-full h-auto max-h-[500px] object-contain mx-auto"
+            />
+            {/* Legend */}
+            <div className="absolute bottom-4 left-4 glass-subtle p-3 text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-primary" />
+                <span className="text-dark">High confidence landmark</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                <span className="text-dark">Medium confidence</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-0.5 bg-primary" />
+                <span className="text-dark">Level/alignment lines</span>
+              </div>
+            </div>
+
+            {/* Hint to edit */}
+            {result.landmarks && result.original_image && (
+              <div className="absolute bottom-4 right-4 glass-subtle px-3 py-2 text-xs text-muted">
+                Points not accurate? Click &quot;Adjust Points&quot; to correct them
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recalculating indicator */}
+        {isRecalculating && (
+          <div className="flex items-center justify-center gap-2 p-4 bg-primary/5 rounded-[12px]">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-muted">Recalculating measurements...</span>
+          </div>
+        )}
+      </div>
+
+      {/* Assessment Summary */}
+      <div className={`glass p-6 space-y-4 ${getRiskBgColor(result.risk_level)}`}>
+        <div className="flex items-center gap-4">
+          <div className={`w-16 h-16 rounded-[20px] ${getRiskBgColor(result.risk_level)} flex items-center justify-center`}>
+            {getRiskIcon(result.risk_level)}
+          </div>
+          <div>
+            <p className="text-sm text-muted">Assessment</p>
+            <p className={`text-2xl font-semibold ${getRiskColor(result.risk_level)}`}>
+              {getRiskLabel(result.risk_level)}
+            </p>
+          </div>
+        </div>
+
+        {/* What this means */}
+        <div className="pt-4 border-t border-dark/10">
+          <p className="text-sm text-dark leading-relaxed">
+            {result.risk_level === "LOW" && (
+              <>Your postural measurements fall within normal variation. Research shows only 19% of
+              adolescents have perfectly symmetrical shoulders - minor asymmetries are common and
+              typically not clinically significant.</>
+            )}
+            {result.risk_level === "MEDIUM" && (
+              <>Some measurements approach or exceed thresholds used in clinical scoliosis screening
+              programs. While not diagnostic, these findings may warrant monitoring or professional
+              evaluation, especially during adolescent growth periods.</>
+            )}
+            {result.risk_level === "HIGH" && (
+              <>Multiple measurements exceed clinical thresholds used by orthopedic specialists.
+              This pattern of asymmetries is similar to what clinicians look for during physical
+              examination and suggests evaluation by a healthcare provider.</>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Clinical Findings Detail */}
+      {parsedFindings.length > 0 && (
+        <div className="glass p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-dark">Clinical Findings</h3>
+            <span className="text-xs text-muted">Based on peer-reviewed thresholds</span>
+          </div>
+
+          <div className="space-y-4">
+            {parsedFindings.map((finding, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-[12px] border-l-4 ${getSeverityBg(finding.severity)}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">{getSeverityIcon(finding.severity)}</div>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-sm font-medium text-dark">{finding.measurement}</span>
+                      {finding.value && (
+                        <span className={`text-lg font-semibold ${
+                          finding.severity === "significant" ? "text-red-600" :
+                          finding.severity === "moderate" ? "text-yellow-600" : "text-dark"
+                        }`}>
+                          {finding.value}
+                        </span>
+                      )}
+                    </div>
+                    {finding.context && (
+                      <p className="text-sm text-muted leading-relaxed">{finding.context}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* HAI (Height Asymmetry Index) - Primary Clinical Score */}
+      <div className="glass p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium text-dark">Height Asymmetry Index (HAI)</h3>
+            <p className="text-xs text-muted">Primary clinical screening metric (POTSI methodology)</p>
+          </div>
+          <div className="text-right">
+            <p className={`text-3xl font-semibold ${
+              result.metrics.hai_score > 15 ? "text-red-500" :
+              result.metrics.hai_score > 10 ? "text-yellow-600" : "text-primary"
+            }`}>
+              {result.metrics.hai_score.toFixed(1)}
+            </p>
+            <p className="text-xs text-muted">/ 100</p>
+          </div>
+        </div>
+
+        {/* HAI Progress Bar */}
+        <div className="relative h-3 bg-dark/10 rounded-full overflow-hidden">
+          <div className="absolute inset-0 flex">
+            <div className="w-[10%] bg-primary/30" />
+            <div className="w-[5%] bg-yellow-200" />
+            <div className="flex-1 bg-red-200" />
+          </div>
+          <div
+            className="absolute top-0 bottom-0 w-1.5 bg-dark rounded-full transition-all"
+            style={{ left: `${Math.min(100, result.metrics.hai_score)}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-muted">
+          <span>0</span>
+          <span className="text-primary font-medium">10 (threshold)</span>
+          <span className="text-yellow-600">15</span>
+          <span>100</span>
+        </div>
+
+        <div className={`p-3 rounded-[12px] ${
+          result.metrics.hai_score > 15 ? "bg-red-50 border border-red-200" :
+          result.metrics.hai_score > 10 ? "bg-yellow-50 border border-yellow-200" :
+          "bg-primary/5 border border-primary/20"
+        }`}>
+          <p className="text-sm text-dark leading-relaxed">
+            {result.metrics.hai_score > 15 ? (
+              <>
+                <span className="font-medium">Significant asymmetry detected.</span> HAI significantly exceeds
+                the clinical threshold (&gt;10). The HAI combines asymmetries at shoulder, axillary fold (armpit),
+                and waist crease levels - the same landmarks clinicians use in physical examination.
+              </>
+            ) : result.metrics.hai_score > 10 ? (
+              <>
+                <span className="font-medium">Above clinical threshold.</span> The POTSI methodology considers
+                HAI &gt;10 as warranting further evaluation. This indicates combined asymmetry across multiple
+                torso landmarks used in scoliosis screening.
+              </>
+            ) : (
+              <>
+                <span className="font-medium">Within normal range.</span> HAI ≤10 is considered normal.
+                Minor asymmetries are common in the general population.
+              </>
+            )}
+          </p>
+        </div>
+
+        <p className="text-xs text-muted">
+          <span className="font-medium">Reference:</span> Height Asymmetry Index (HAI) = sum of height differences
+          at shoulders + axillary folds + waist creases, normalized by torso height.
+          (Suzuki et al., POTSI methodology)
+        </p>
+      </div>
+
+      {/* HAI Component Measurements */}
+      <div className="glass p-6 space-y-4">
+        <h3 className="text-lg font-medium text-dark">HAI Component Measurements</h3>
+        <p className="text-xs text-muted">Individual landmarks that compose the Height Asymmetry Index</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Shoulder Height */}
+          <div className="glass-subtle p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">Shoulder Level</span>
+              <span className={`text-lg font-semibold ${
+                result.metrics.shoulder_height_diff_pct > 5 ? "text-red-500" :
+                result.metrics.shoulder_height_diff_pct > 3 ? "text-yellow-600" : "text-dark"
+              }`}>
+                {result.metrics.shoulder_height_diff_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-1.5 bg-dark/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  result.metrics.shoulder_height_diff_pct > 5 ? "bg-red-500" :
+                  result.metrics.shoulder_height_diff_pct > 3 ? "bg-yellow-500" : "bg-primary"
+                }`}
+                style={{ width: `${Math.min(100, (result.metrics.shoulder_height_diff_pct / 8) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted">Threshold: &gt;3% of torso height</p>
+          </div>
+
+          {/* Axillary Fold */}
+          <div className="glass-subtle p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">Axillary Fold (Armpit)</span>
+              <span className={`text-lg font-semibold ${
+                result.metrics.axilla_height_diff_pct > 4 ? "text-yellow-600" : "text-dark"
+              }`}>
+                {result.metrics.axilla_height_diff_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-1.5 bg-dark/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  result.metrics.axilla_height_diff_pct > 4 ? "bg-yellow-500" : "bg-primary"
+                }`}
+                style={{ width: `${Math.min(100, (result.metrics.axilla_height_diff_pct / 8) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted">Reflects underlying torso asymmetry</p>
+          </div>
+
+          {/* Waist Crease */}
+          <div className="glass-subtle p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">Waist Crease</span>
+              <span className={`text-lg font-semibold ${
+                result.metrics.waist_height_diff_pct > 5 ? "text-red-500" :
+                result.metrics.waist_height_diff_pct > 3 ? "text-yellow-600" : "text-dark"
+              }`}>
+                {result.metrics.waist_height_diff_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-1.5 bg-dark/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  result.metrics.waist_height_diff_pct > 5 ? "bg-red-500" :
+                  result.metrics.waist_height_diff_pct > 3 ? "bg-yellow-500" : "bg-primary"
+                }`}
+                style={{ width: `${Math.min(100, (result.metrics.waist_height_diff_pct / 8) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted">Key lumbar curve indicator</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Trunk Shift (Coronal Balance) */}
+      <div className="glass p-6 space-y-4">
+        <h3 className="text-lg font-medium text-dark">Coronal Balance (Trunk Shift)</h3>
+        <p className="text-xs text-muted">Lateral deviation of upper body relative to pelvis (SRS guidelines)</p>
+
+        <div className="space-y-4">
+          {/* Shoulder Height */}
+          {(() => {
+            const status = getMetricStatus(result.metrics.shoulder_height_diff_pct, 3, 5);
+            const badge = getMetricBadge(status);
+            return (
+              <div className="glass-subtle p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-muted" />
+                    <span className="text-sm font-medium text-dark">Shoulder Height Difference</span>
+                  </div>
+                  <span className={`text-2xl font-semibold ${getMetricColor(status)}`}>
+                    {result.metrics.shoulder_height_diff_pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="relative h-2 bg-dark/10 rounded-full overflow-hidden">
+                  <div className="absolute inset-0 flex">
+                    <div className="w-1/2 bg-primary/20" />
+                    <div className="w-1/4 bg-yellow-200" />
+                    <div className="w-1/4 bg-red-200" />
+                  </div>
+                  <div
+                    className="absolute top-0 bottom-0 w-1 bg-dark rounded-full"
+                    style={{ left: `${Math.min(100, (result.metrics.shoulder_height_diff_pct / 8) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted">
+                  <span>0%</span>
+                  <span className="text-primary">3% (threshold)</span>
+                  <span className="text-yellow-600">5%</span>
+                  <span>8%+</span>
+                </div>
+                <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
+                  {badge.text}
+                </span>
+                <p className="text-xs text-muted">
+                  Reference: Percentage of torso height. &gt;3% indicates shoulder imbalance.
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Trunk Shift */}
+          {(() => {
+            const status = getMetricStatus(result.metrics.trunk_shift_pct, 5, 8);
+            const badge = getMetricBadge(status);
+            return (
+              <div className="glass-subtle p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ArrowLeftRight size={16} className="text-muted" />
+                    <span className="text-sm font-medium text-dark">Trunk Shift (Coronal Balance)</span>
+                  </div>
+                  <span className={`text-2xl font-semibold ${getMetricColor(status)}`}>
+                    {result.metrics.trunk_shift_pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="relative h-2 bg-dark/10 rounded-full overflow-hidden">
+                  <div className="absolute inset-0 flex">
+                    <div className="w-1/2 bg-primary/20" />
+                    <div className="w-1/4 bg-yellow-200" />
+                    <div className="w-1/4 bg-red-200" />
+                  </div>
+                  <div
+                    className="absolute top-0 bottom-0 w-1 bg-dark rounded-full"
+                    style={{ left: `${Math.min(100, (result.metrics.trunk_shift_pct / 12) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted">
+                  <span>0%</span>
+                  <span className="text-primary">5% (threshold)</span>
+                  <span className="text-yellow-600">8%</span>
+                  <span>12%+</span>
+                </div>
+                <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
+                  {badge.text}
+                </span>
+                <p className="text-xs text-muted">
+                  Reference: Lateral shift as % of shoulder width. &gt;5% indicates trunk decompensation.
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Hip Height */}
+          {(() => {
+            const status = getMetricStatus(result.metrics.hip_height_diff_pct, 2, 4);
+            const badge = getMetricBadge(status);
+            return (
+              <div className="glass-subtle p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-muted" />
+                    <span className="text-sm font-medium text-dark">Hip/Pelvic Height Difference</span>
+                  </div>
+                  <span className={`text-2xl font-semibold ${getMetricColor(status)}`}>
+                    {result.metrics.hip_height_diff_pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="relative h-2 bg-dark/10 rounded-full overflow-hidden">
+                  <div className="absolute inset-0 flex">
+                    <div className="w-1/2 bg-primary/20" />
+                    <div className="w-1/4 bg-yellow-200" />
+                    <div className="w-1/4 bg-red-200" />
+                  </div>
+                  <div
+                    className="absolute top-0 bottom-0 w-1 bg-dark rounded-full"
+                    style={{ left: `${Math.min(100, (result.metrics.hip_height_diff_pct / 6) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted">
+                  <span>0%</span>
+                  <span className="text-primary">2%</span>
+                  <span className="text-yellow-600">4%</span>
+                  <span>6%+</span>
+                </div>
+                <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
+                  {badge.text}
+                </span>
+                <p className="text-xs text-muted">
+                  Pelvic obliquity may indicate leg length discrepancy or compensatory changes from lumbar curvature.
+                </p>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Clinical Recommendations */}
+      <div className="glass p-6 space-y-4">
+        <h3 className="text-lg font-medium text-dark">Clinical Guidance</h3>
+        <div className="space-y-3">
+          {result.recommendations.map((rec, idx) => {
+            // Check if recommendation starts with a category label
+            const isHeader = rec.includes(":") && rec.indexOf(":") < 30;
+            const parts = isHeader ? rec.split(":") : [null, rec];
+
+            return (
+              <div key={idx} className="p-4 glass-subtle rounded-[12px] space-y-2">
+                {isHeader && (
+                  <p className="text-sm font-medium text-dark">{parts[0]}</p>
+                )}
+                <p className="text-sm text-muted leading-relaxed">
+                  {isHeader ? parts.slice(1).join(":").trim() : rec}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CTA for X-ray if medium/high risk */}
+        {(result.risk_level === "MEDIUM" || result.risk_level === "HIGH") && (
+          <div className="pt-4 border-t border-primary/10">
+            <div className="glass-subtle p-4 space-y-4 border border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
+                  <Scan size={20} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-dark">Consider X-ray Evaluation</p>
+                  <p className="text-xs text-muted">X-rays allow measurement of Cobb angle - the gold standard for scoliosis diagnosis</p>
+                </div>
+              </div>
+              <div className="text-xs text-muted space-y-1 pl-13">
+                <p>• Cobb angle 10-25°: Mild scoliosis - typically monitored</p>
+                <p>• Cobb angle 25-40°: Moderate - may benefit from bracing</p>
+                <p>• Cobb angle &gt;40°: Severe - surgical evaluation may be needed</p>
+              </div>
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem("analysisResults");
+                  window.location.href = "/";
+                }}
+                className="btn btn-primary w-full"
+              >
+                <Scan size={18} />
+                Upload X-ray for Cobb Angle Measurement
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Literature References */}
+      <div className="glass-subtle p-4 space-y-3">
+        <p className="text-sm font-medium text-dark">Clinical References</p>
+        <div className="text-xs text-muted space-y-1">
+          <p>• Kuklo et al. (2006) - Shoulder imbalance threshold (&gt;10mm)</p>
+          <p>• Scoliosis Research Society - Coronal balance classification</p>
+          <p>• Akel et al. - Photographic shoulder assessment in adolescents</p>
+          <p>• European Spine Journal (2018) - Coronal imbalance classification</p>
+          <p>• AAFP Screening Guidelines - Scoliometer and clinical exam thresholds</p>
+        </div>
+      </div>
+
+      {/* Detection Confidence */}
+      <div className="glass-subtle p-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Clock size={14} />
+          <span>Analyzed in {result.processing_time_ms.toFixed(0)}ms</span>
+        </div>
+        <div className="text-sm text-muted">
+          Detection confidence: {(result.landmark_confidence * 100).toFixed(0)}%
+        </div>
+      </div>
+
+      {/* Disclaimer */}
+      <div className="glass-subtle p-4 flex gap-3">
+        <AlertCircle size={20} className="text-muted flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-muted leading-relaxed">
+          This screening is based on pose estimation and may not detect all scoliosis indicators.
+          Factors like clothing, lighting, and camera angle can affect accuracy.
+          For a definitive diagnosis, please consult a healthcare provider and consider an X-ray evaluation.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsPage() {
   const router = useRouter();
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [result, setResult] = useState<AnalysisResult | PhotoAnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "details" | "exercises">("overview");
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
-  // Profile and flow state
+  // Profile and flow state (only for X-ray)
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [flowStep, setFlowStep] = useState<"setup" | "prediction" | "main">("setup");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  // Check if this is a photo analysis result
+  const isPhotoAnalysis = result?.type === "photo";
+
   useEffect(() => {
     // Load results from sessionStorage
     const stored = sessionStorage.getItem("analysisResults");
     if (stored) {
-      setResult(JSON.parse(stored));
+      const parsedResult = JSON.parse(stored);
+      setResult(parsedResult);
+
+      // For photo analysis, skip profile setup
+      if (parsedResult.type === "photo") {
+        setFlowStep("main");
+      }
     } else {
       // No results, redirect to home
       router.push("/");
     }
 
-    // Load profile from localStorage (persists across sessions)
+    // Load profile from localStorage (only relevant for X-ray)
     const storedProfile = localStorage.getItem("userProfile");
     if (storedProfile) {
       const parsedProfile = JSON.parse(storedProfile) as UserProfile;
@@ -1221,13 +2050,14 @@ export default function ResultsPage() {
     }
   }, [router]);
 
-  // Recalculate prediction when profile or result changes
+  // Recalculate prediction when profile or result changes (only for X-ray)
   useEffect(() => {
-    if (profile && result) {
+    if (profile && result && result.type !== "photo") {
+      const xray = result as AnalysisResult;
       const newPrediction = calculatePrediction(
         profile,
-        result.primary_cobb_angle,
-        result.severity
+        xray.primary_cobb_angle,
+        xray.severity
       );
       setPrediction(newPrediction);
     }
@@ -1262,6 +2092,44 @@ export default function ResultsPage() {
     );
   }
 
+  // Render Photo Analysis Results
+  if (isPhotoAnalysis) {
+    return (
+      <div className="min-h-screen px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <header className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                sessionStorage.removeItem("analysisResults");
+                router.push("/");
+              }}
+              className="btn btn-ghost"
+            >
+              <RotateCcw size={18} />
+              New Analysis
+            </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+              <Camera size={14} />
+              Back Photo Screening
+            </div>
+          </header>
+
+          <PhotoResultsDisplay
+            result={result as PhotoAnalysisResult}
+            onNewAnalysis={() => {
+              sessionStorage.removeItem("analysisResults");
+              router.push("/");
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Cast to X-ray result type for the rest of the component
+  const xrayResult = result as AnalysisResult;
+
   return (
     <div className="min-h-screen px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -1278,7 +2146,7 @@ export default function ResultsPage() {
             New Analysis
           </button>
           <div className="flex items-center gap-4">
-            {flowStep === "main" && profile && (
+            {flowStep === "main" && profile && !isPhotoAnalysis && (
               <button
                 onClick={handleEditProfile}
                 className="btn btn-ghost text-xs"
@@ -1289,7 +2157,7 @@ export default function ResultsPage() {
             )}
             <div className="flex items-center gap-2 text-xs text-muted">
               <Clock size={14} />
-              Analyzed in {result.processing_time_ms.toFixed(0)}ms
+              Analyzed in {xrayResult.processing_time_ms.toFixed(0)}ms
             </div>
           </div>
         </header>
@@ -1299,7 +2167,7 @@ export default function ResultsPage() {
           {/* X-ray with Skeleton Overlay */}
           <div className="relative rounded-[16px] overflow-hidden bg-dark/5">
             <img
-              src={result.annotated_image}
+              src={xrayResult.annotated_image}
               alt="Analyzed X-ray with spine overlay"
               className="w-full h-auto max-h-[500px] object-contain mx-auto"
             />
@@ -1307,7 +2175,7 @@ export default function ResultsPage() {
             <div className="absolute bottom-4 left-4 glass-subtle p-3 text-xs space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-primary" />
-                <span className="text-dark">Vertebrae ({result.total_vertebrae_detected})</span>
+                <span className="text-dark">Vertebrae ({xrayResult.total_vertebrae_detected})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-orange-500" />
@@ -1321,33 +2189,33 @@ export default function ResultsPage() {
             <StatCard
               icon={Ruler}
               label="Cobb Angle"
-              value={`${result.primary_cobb_angle}°`}
-              subtext={formatSeverity(result.severity)}
-              severity={result.severity}
+              value={`${xrayResult.primary_cobb_angle}°`}
+              subtext={formatSeverity(xrayResult.severity)}
+              severity={xrayResult.severity}
             />
             <StatCard
               icon={MapPin}
               label="Curve Location"
-              value={formatLocation(result.curve_location)}
+              value={formatLocation(xrayResult.curve_location)}
             />
             <StatCard
               icon={ArrowLeftRight}
               label="Direction"
-              value={formatDirection(result.curve_direction)}
+              value={formatDirection(xrayResult.curve_direction)}
             />
             <StatCard
               icon={Target}
               label="Schroth Type"
-              value={result.schroth_type}
+              value={xrayResult.schroth_type}
             />
           </div>
 
           {/* Orientation indicator (only shown for non-standard) */}
-          {result.orientation_used && result.orientation_used !== "standard" && (
+          {xrayResult.orientation_used && xrayResult.orientation_used !== "standard" && (
             <div className="glass-subtle p-3 flex items-center gap-2 text-sm">
               <FlipHorizontal2 size={16} className="text-muted" />
               <span className="text-muted">
-                Analysis performed with {result.orientation_used === "flipped" ? "mirrored" : "auto-detected"} image orientation
+                Analysis performed with {xrayResult.orientation_used === "flipped" ? "mirrored" : "auto-detected"} image orientation
               </span>
             </div>
           )}
@@ -1366,7 +2234,7 @@ export default function ResultsPage() {
           <PredictionDisplay
             prediction={prediction}
             profile={profile}
-            cobbAngle={result.primary_cobb_angle}
+            cobbAngle={xrayResult.primary_cobb_angle}
             onEditProfile={handleEditProfile}
             onContinue={handleContinueToMain}
           />
@@ -1424,13 +2292,13 @@ export default function ResultsPage() {
                   <h3 className="text-lg font-medium text-dark">Analysis Summary</h3>
                   <div className="space-y-3 text-sm text-muted leading-relaxed">
                     <p>
-                      Your X-ray shows a <span className="text-dark font-medium">{formatSeverity(result.severity).toLowerCase()}</span> scoliotic curve with a primary Cobb angle of <span className="text-dark font-medium">{result.primary_cobb_angle}°</span>.
+                      Your X-ray shows a <span className="text-dark font-medium">{formatSeverity(xrayResult.severity).toLowerCase()}</span> scoliotic curve with a primary Cobb angle of <span className="text-dark font-medium">{xrayResult.primary_cobb_angle}°</span>.
                     </p>
                     <p>
-                      The curve is located in the <span className="text-dark font-medium">{formatLocation(result.curve_location).toLowerCase()}</span> region with the convexity pointing to the <span className="text-dark font-medium">{formatDirection(result.curve_direction).toLowerCase()}</span>.
+                      The curve is located in the <span className="text-dark font-medium">{formatLocation(xrayResult.curve_location).toLowerCase()}</span> region with the convexity pointing to the <span className="text-dark font-medium">{formatDirection(xrayResult.curve_direction).toLowerCase()}</span>.
                     </p>
                     <p>
-                      Based on the Schroth classification system, your curve pattern is identified as <span className="text-dark font-medium">Type {result.schroth_type}</span>, which helps determine the most effective exercises for your specific curve pattern.
+                      Based on the Schroth classification system, your curve pattern is identified as <span className="text-dark font-medium">Type {xrayResult.schroth_type}</span>, which helps determine the most effective exercises for your specific curve pattern.
                     </p>
                   </div>
                 </div>
@@ -1439,19 +2307,19 @@ export default function ResultsPage() {
                 <div className="glass-subtle p-5">
                   <p className="text-sm font-medium text-dark mb-3">Cobb Angle Reference</p>
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                    <div className={`p-2 rounded-[8px] ${result.severity === "mild" ? "bg-primary/20" : "bg-dark/5"}`}>
+                    <div className={`p-2 rounded-[8px] ${xrayResult.severity === "mild" ? "bg-primary/20" : "bg-dark/5"}`}>
                       <p className="font-medium text-primary">10-25°</p>
                       <p className="text-muted">Mild</p>
                     </div>
-                    <div className={`p-2 rounded-[8px] ${result.severity === "moderate" ? "bg-yellow-100" : "bg-dark/5"}`}>
+                    <div className={`p-2 rounded-[8px] ${xrayResult.severity === "moderate" ? "bg-yellow-100" : "bg-dark/5"}`}>
                       <p className="font-medium text-yellow-600">25-40°</p>
                       <p className="text-muted">Moderate</p>
                     </div>
-                    <div className={`p-2 rounded-[8px] ${result.severity === "severe" ? "bg-orange-100" : "bg-dark/5"}`}>
+                    <div className={`p-2 rounded-[8px] ${xrayResult.severity === "severe" ? "bg-orange-100" : "bg-dark/5"}`}>
                       <p className="font-medium text-orange-500">40-50°</p>
                       <p className="text-muted">Severe</p>
                     </div>
-                    <div className={`p-2 rounded-[8px] ${result.severity === "very_severe" ? "bg-red-100" : "bg-dark/5"}`}>
+                    <div className={`p-2 rounded-[8px] ${xrayResult.severity === "very_severe" ? "bg-red-100" : "bg-dark/5"}`}>
                       <p className="font-medium text-red-500">&gt;50°</p>
                       <p className="text-muted">Very Severe</p>
                     </div>
@@ -1465,9 +2333,9 @@ export default function ResultsPage() {
                 {/* Cobb Angles */}
                 <div className="glass p-6 space-y-4">
                   <h3 className="text-lg font-medium text-dark">Cobb Angle Measurements</h3>
-                  {result.cobb_angles.length > 0 ? (
+                  {xrayResult.cobb_angles.length > 0 ? (
                     <div className="space-y-3">
-                      {result.cobb_angles.map((cobb, idx) => (
+                      {xrayResult.cobb_angles.map((cobb, idx) => (
                         <div key={idx} className="glass-subtle p-4 flex items-center justify-between">
                           <div>
                             <p className="font-medium text-dark">{cobb.angle}°</p>
@@ -1492,16 +2360,16 @@ export default function ResultsPage() {
                   <h3 className="text-lg font-medium text-dark">Vertebrae Detection</h3>
                   <div className="flex items-center gap-4">
                     <div className="glass-subtle px-4 py-3">
-                      <p className="text-2xl font-semibold text-primary">{result.total_vertebrae_detected}</p>
+                      <p className="text-2xl font-semibold text-primary">{xrayResult.total_vertebrae_detected}</p>
                       <p className="text-xs text-muted">Vertebrae Detected</p>
                     </div>
                     <div className="glass-subtle px-4 py-3">
-                      <p className="text-2xl font-semibold text-dark">{(result.confidence_score * 100).toFixed(0)}%</p>
+                      <p className="text-2xl font-semibold text-dark">{(xrayResult.confidence_score * 100).toFixed(0)}%</p>
                       <p className="text-xs text-muted">Confidence Score</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {result.vertebrae.map((v) => (
+                    {xrayResult.vertebrae.map((v) => (
                       <span
                         key={v.index}
                         className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium"
@@ -1524,7 +2392,7 @@ export default function ResultsPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-dark">
-                        Exercises for Type {result.schroth_type} Pattern
+                        Exercises for Type {xrayResult.schroth_type} Pattern
                       </p>
                       <p className="text-xs text-muted">
                         Personalized based on your curve classification
@@ -1534,7 +2402,7 @@ export default function ResultsPage() {
                 </div>
 
                 {/* Exercise List */}
-                {result.exercises.map((exercise) => (
+                {xrayResult.exercises.map((exercise) => (
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}

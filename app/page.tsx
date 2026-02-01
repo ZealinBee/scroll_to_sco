@@ -18,10 +18,17 @@ import {
   Check,
   AlertTriangle,
   ChevronLeft,
+  Scan,
+  Camera,
+  Activity,
+  ShieldCheck,
 } from "lucide-react";
+import PhotoGuidance from "./components/PhotoGuidance";
 
 // Types for orientation
 type ImageOrientation = "standard" | "flipped" | "unknown";
+type AnalysisType = "xray" | "photo" | null;
+type Step = "select" | "guidance" | "upload" | "confirm";
 
 interface DetectedMarker {
   marker: string;
@@ -49,6 +56,56 @@ function FeatureItem({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
       </div>
       <span className="text-sm text-dark">{text}</span>
     </div>
+  );
+}
+
+function AnalysisTypeCard({
+  icon: Icon,
+  title,
+  subtitle,
+  description,
+  features,
+  onClick,
+  recommended,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  description: string;
+  features: string[];
+  onClick: () => void;
+  recommended?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`glass p-6 text-left space-y-4 transition-all hover:shadow-lg hover:translate-y-[-2px] ${
+        recommended ? "ring-2 ring-primary/30" : ""
+      }`}
+    >
+      {recommended && (
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+          <ShieldCheck size={12} />
+          Clinical Grade
+        </div>
+      )}
+      <div className="w-12 h-12 rounded-[16px] bg-primary/10 flex items-center justify-center">
+        <Icon size={24} className="text-primary" />
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-dark">{title}</h3>
+        <p className="text-sm text-primary font-medium">{subtitle}</p>
+      </div>
+      <p className="text-sm text-muted leading-relaxed">{description}</p>
+      <div className="space-y-2 pt-2">
+        {features.map((feature, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs text-muted">
+            <Check size={14} className="text-primary" />
+            {feature}
+          </div>
+        ))}
+      </div>
+    </button>
   );
 }
 
@@ -240,8 +297,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Orientation confirmation state
-  const [step, setStep] = useState<"upload" | "confirm">("upload");
+  // Analysis type selection
+  const [analysisType, setAnalysisType] = useState<AnalysisType>(null);
+  const [step, setStep] = useState<Step>("select");
+
+  // Orientation confirmation state (for X-ray)
   const [detectionResult, setDetectionResult] =
     useState<OrientationDetectionResult | null>(null);
   const [previewWithMarker, setPreviewWithMarker] = useState<string | null>(
@@ -295,6 +355,36 @@ export default function Home() {
     inputRef.current?.click();
   };
 
+  // Select analysis type
+  const handleSelectXray = () => {
+    setAnalysisType("xray");
+    setStep("upload");
+  };
+
+  const handleSelectPhoto = () => {
+    setAnalysisType("photo");
+    setStep("guidance");
+  };
+
+  const handleBackToSelect = () => {
+    setStep("select");
+    setAnalysisType(null);
+    setSelectedFile(null);
+    setPreview(null);
+    setError(null);
+  };
+
+  const handleGuidanceReady = () => {
+    setStep("upload");
+  };
+
+  const handleBackToGuidance = () => {
+    setStep("guidance");
+    setSelectedFile(null);
+    setPreview(null);
+  };
+
+  // X-ray specific: Continue to orientation confirmation
   const handleContinueToConfirm = async () => {
     if (!preview) return;
 
@@ -314,7 +404,6 @@ export default function Home() {
         setDetectionResult(data.detection_result);
         setPreviewWithMarker(data.preview_image);
       } else {
-        // If detection fails, still allow manual confirmation
         setDetectionResult({
           detected_marker: null,
           suggested_orientation: "unknown",
@@ -324,7 +413,6 @@ export default function Home() {
       }
     } catch (err) {
       console.error("Orientation detection error:", err);
-      // Allow manual confirmation even if detection fails
       setDetectionResult({
         detected_marker: null,
         suggested_orientation: "unknown",
@@ -346,6 +434,7 @@ export default function Home() {
     setIsFlipped(!isFlipped);
   };
 
+  // X-ray: Confirm and analyze
   const handleConfirmAndAnalyze = async (
     confirmedOrientation: ImageOrientation
   ) => {
@@ -373,7 +462,8 @@ export default function Home() {
         );
       }
 
-      sessionStorage.setItem("analysisResults", JSON.stringify(data));
+      // Store with type indicator
+      sessionStorage.setItem("analysisResults", JSON.stringify({ ...data, type: "xray" }));
       router.push("/results");
     } catch (err) {
       console.error("Analysis error:", err);
@@ -388,8 +478,122 @@ export default function Home() {
     }
   };
 
-  // Render confirmation step
-  if (step === "confirm" && preview) {
+  // Photo: Analyze directly (no orientation step)
+  const handleAnalyzePhoto = async () => {
+    if (!preview) return;
+
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/analyze-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: preview }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || data.detail?.error || "Analysis failed"
+        );
+      }
+
+      // Store with type indicator
+      sessionStorage.setItem("analysisResults", JSON.stringify({ ...data, type: "photo" }));
+      router.push("/results");
+    } catch (err) {
+      console.error("Photo analysis error:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to analyze photo. Please try again."
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Render analysis type selection
+  if (step === "select") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <main className="w-full max-w-2xl space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+              <Sparkles size={16} />
+              AI-Powered Analysis
+            </div>
+            <h1 className="text-4xl font-semibold text-dark leading-tight">
+              Let&apos;s take a look at your spine
+            </h1>
+            <p className="text-muted text-lg leading-relaxed max-w-md mx-auto">
+              Choose how you&apos;d like to analyze your spinal health
+            </p>
+          </div>
+
+          {/* Analysis Type Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <AnalysisTypeCard
+              icon={Scan}
+              title="X-ray Analysis"
+              subtitle="Clinical Diagnosis"
+              description="Upload a spine X-ray for precise Cobb angle measurement and Schroth classification."
+              features={[
+                "Accurate vertebrae detection",
+                "Cobb angle measurement",
+                "Schroth type classification",
+                "Personalized exercises",
+              ]}
+              onClick={handleSelectXray}
+              recommended
+            />
+            <AnalysisTypeCard
+              icon={Camera}
+              title="Back Photo Screening"
+              subtitle="At-home Check"
+              description="Take a photo of your back to screen for posture asymmetries that may indicate scoliosis."
+              features={[
+                "Posture asymmetry detection",
+                "Shoulder & hip alignment",
+                "Risk assessment",
+                "Screening guidance",
+              ]}
+              onClick={handleSelectPhoto}
+            />
+          </div>
+
+          {/* Trust Note */}
+          <p className="text-center text-xs text-muted">
+            Your images are processed securely and never stored without your
+            permission.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  // Render photo guidance
+  if (step === "guidance" && analysisType === "photo") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <main className="w-full max-w-lg space-y-8">
+          <PhotoGuidance onReady={handleGuidanceReady} onBack={handleBackToSelect} />
+
+          {/* Trust Note */}
+          <p className="text-center text-xs text-muted">
+            Your images are processed securely and never stored without your
+            permission.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  // Render X-ray orientation confirmation
+  if (step === "confirm" && analysisType === "xray" && preview) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
         <main className="w-full max-w-lg space-y-8">
@@ -425,21 +629,25 @@ export default function Home() {
   }
 
   // Render upload step
+  const isXray = analysisType === "xray";
+  const isPhoto = analysisType === "photo";
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <main className="w-full max-w-lg space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-            <Sparkles size={16} />
-            AI-Powered Analysis
+            {isXray ? <Scan size={16} /> : <Camera size={16} />}
+            {isXray ? "X-ray Analysis" : "Back Photo Screening"}
           </div>
           <h1 className="text-4xl font-semibold text-dark leading-tight">
-            Let&apos;s take a look at your spine
+            {isXray ? "Upload Your X-ray" : "Upload Your Photo"}
           </h1>
           <p className="text-muted text-lg leading-relaxed max-w-md mx-auto">
-            Upload an X-ray image of your back, and our AI will provide you with
-            personalized insights about your spinal health.
+            {isXray
+              ? "Upload an X-ray image of your spine for clinical analysis."
+              : "Upload a photo of your back for posture screening."}
           </p>
         </div>
 
@@ -471,7 +679,9 @@ export default function Home() {
                 </div>
                 <div className="space-y-2">
                   <p className="text-dark font-medium">
-                    Drag and drop your X-ray here
+                    {isXray
+                      ? "Drag and drop your X-ray here"
+                      : "Drag and drop your back photo here"}
                   </p>
                   <p className="text-muted text-sm">or</p>
                 </div>
@@ -483,7 +693,9 @@ export default function Home() {
                   Choose from Gallery
                 </button>
                 <p className="text-xs text-muted">
-                  Supports JPG, PNG, and DICOM files
+                  {isXray
+                    ? "Supports JPG, PNG, and DICOM files"
+                    : "Supports JPG and PNG files"}
                 </p>
               </div>
             </div>
@@ -492,7 +704,7 @@ export default function Home() {
               <div className="relative rounded-[16px] overflow-hidden bg-dark/5">
                 <img
                   src={preview}
-                  alt="X-ray preview"
+                  alt="Preview"
                   className="w-full h-64 object-contain"
                 />
               </div>
@@ -521,7 +733,7 @@ export default function Home() {
                     setPreviewWithMarker(null);
                   }}
                   className="btn btn-ghost text-sm"
-                  disabled={isDetecting}
+                  disabled={isDetecting || isAnalyzing}
                 >
                   Change
                 </button>
@@ -537,41 +749,91 @@ export default function Home() {
           </div>
         )}
 
-        {/* What We Analyze */}
-        <div className="glass-subtle p-5">
-          <p className="text-sm font-medium text-dark mb-4">
-            What we&apos;ll analyze for you
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <FeatureItem icon={Bone} text="Vertebrae detection" />
-            <FeatureItem icon={Ruler} text="Cobb angle measurement" />
-            <FeatureItem icon={MapPin} text="Curve location (T/L/TL)" />
-            <FeatureItem icon={ArrowLeftRight} text="Curve direction (L/R)" />
-            <FeatureItem icon={Target} text="Schroth classification" />
-            <FeatureItem icon={Dumbbell} text="Personalized exercises" />
+        {/* What We Analyze - X-ray specific */}
+        {isXray && (
+          <div className="glass-subtle p-5">
+            <p className="text-sm font-medium text-dark mb-4">
+              What we&apos;ll analyze for you
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FeatureItem icon={Bone} text="Vertebrae detection" />
+              <FeatureItem icon={Ruler} text="Cobb angle measurement" />
+              <FeatureItem icon={MapPin} text="Curve location (T/L/TL)" />
+              <FeatureItem icon={ArrowLeftRight} text="Curve direction (L/R)" />
+              <FeatureItem icon={Target} text="Schroth classification" />
+              <FeatureItem icon={Dumbbell} text="Personalized exercises" />
+            </div>
           </div>
-        </div>
-
-        {/* Continue Button */}
-        {preview && (
-          <button
-            onClick={handleContinueToConfirm}
-            disabled={isDetecting}
-            className="btn btn-primary w-full text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {isDetecting ? (
-              <>
-                <Loader2 size={20} className="animate-spin" />
-                Detecting Orientation...
-              </>
-            ) : (
-              <>
-                <ArrowLeftRight size={20} />
-                Continue to Orientation Check
-              </>
-            )}
-          </button>
         )}
+
+        {/* What We Analyze - Photo specific */}
+        {isPhoto && (
+          <div className="glass-subtle p-5">
+            <p className="text-sm font-medium text-dark mb-4">
+              What we&apos;ll screen for
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FeatureItem icon={Activity} text="Shoulder alignment" />
+              <FeatureItem icon={Activity} text="Hip alignment" />
+              <FeatureItem icon={ArrowLeftRight} text="Trunk shift" />
+              <FeatureItem icon={Target} text="Rotation detection" />
+              <FeatureItem icon={AlertTriangle} text="Risk assessment" />
+              <FeatureItem icon={Sparkles} text="Recommendations" />
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={isPhoto ? handleBackToGuidance : handleBackToSelect}
+            className="btn btn-secondary"
+            disabled={isDetecting || isAnalyzing}
+          >
+            <ChevronLeft size={18} />
+            Back
+          </button>
+
+          {preview && isXray && (
+            <button
+              onClick={handleContinueToConfirm}
+              disabled={isDetecting}
+              className="btn btn-primary flex-1 text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isDetecting ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Detecting Orientation...
+                </>
+              ) : (
+                <>
+                  <ArrowLeftRight size={20} />
+                  Continue to Orientation Check
+                </>
+              )}
+            </button>
+          )}
+
+          {preview && isPhoto && (
+            <button
+              onClick={handleAnalyzePhoto}
+              disabled={isAnalyzing}
+              className="btn btn-primary flex-1 text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={20} />
+                  Analyze Photo
+                </>
+              )}
+            </button>
+          )}
+        </div>
 
         {/* Trust Note */}
         <p className="text-center text-xs text-muted">

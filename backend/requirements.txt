@@ -20,3 +20,6 @@ httpx==0.27.2
 
 # OCR for L/R marker detection
 easyocr==1.7.1
+
+# Pose estimation for photo analysis
+mediapipe>=0.10.9

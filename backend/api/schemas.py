@@ -153,3 +153,99 @@ class ErrorResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
+
+
+# ============================================
+# Photo Analysis Schemas (Back Photo Screening)
+# ============================================
+
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class AsymmetryMetrics(BaseModel):
+    """
+    Calculated asymmetry metrics from pose analysis.
+
+    Based on HAI (Height Asymmetry Index) methodology which measures
+    height differences at shoulders, axillary folds, and waist creases.
+    All measurements are expressed as percentages of torso height for
+    camera-distance independence.
+    Reference: POTSI methodology (Suzuki et al.)
+    """
+    # Primary measurements (as % of torso height)
+    shoulder_height_diff_pct: float = Field(..., description="Shoulder height difference as % of torso height")
+    hip_height_diff_pct: float = Field(..., description="Hip height difference as % of torso height")
+    trunk_shift_pct: float = Field(..., description="Lateral trunk shift as % of shoulder width")
+
+    # HAI component measurements (as % of torso height)
+    waist_height_diff_pct: float = Field(0.0, description="Waist crease height difference as % of torso height")
+    axilla_height_diff_pct: float = Field(0.0, description="Axillary fold height difference as % of torso height")
+
+    # Rotation/depth scores (0-1 scale, camera-independent)
+    shoulder_rotation_score: float = Field(..., description="Shoulder rotation asymmetry (0-1)")
+    hip_rotation_score: float = Field(..., description="Hip rotation asymmetry (0-1)")
+    scapula_prominence_diff: float = Field(0.0, description="Scapula prominence difference")
+
+    # Composite scores
+    hai_score: float = Field(0.0, description="Height Asymmetry Index (POTSI: >10 is pathologic)")
+    overall_asymmetry_score: float = Field(..., description="Overall asymmetry score (0-100)")
+
+
+class LandmarkPosition(BaseModel):
+    """A landmark position for manual adjustment."""
+    x: float = Field(..., description="Normalized X coordinate (0-1)")
+    y: float = Field(..., description="Normalized Y coordinate (0-1)")
+
+
+class LandmarkPositions(BaseModel):
+    """All landmark positions for the photo analysis."""
+    left_shoulder: LandmarkPosition
+    right_shoulder: LandmarkPosition
+    left_hip: LandmarkPosition
+    right_hip: LandmarkPosition
+    left_axilla: LandmarkPosition
+    right_axilla: LandmarkPosition
+    left_waist: LandmarkPosition
+    right_waist: LandmarkPosition
+
+
+class PhotoAnalysisRequest(BaseModel):
+    """Request for back photo analysis."""
+    image: str = Field(..., description="Base64 encoded image of person's back")
+
+
+class RecalculateMetricsRequest(BaseModel):
+    """Request to recalculate metrics from manually adjusted landmarks."""
+    landmarks: LandmarkPositions = Field(..., description="Manually adjusted landmark positions")
+    image_width: int = Field(..., description="Original image width in pixels")
+    image_height: int = Field(..., description="Original image height in pixels")
+
+
+class PhotoAnalysisResponse(BaseModel):
+    """Response from back photo analysis."""
+    success: bool
+    image_id: str
+
+    # Analysis results
+    metrics: AsymmetryMetrics
+    risk_level: RiskLevel
+    risk_factors: List[str] = Field(..., description="Human-readable risk factors detected")
+    recommendations: List[str] = Field(..., description="Recommendations based on risk level")
+
+    # Visualization
+    annotated_image: str = Field(..., description="Base64 encoded image with pose overlay")
+    original_image: Optional[str] = Field(None, description="Base64 encoded original image (for landmark editing)")
+
+    # Landmark positions (for manual adjustment)
+    landmarks: Optional[LandmarkPositions] = Field(None, description="Detected landmark positions")
+
+    # Image dimensions (needed for recalculation)
+    image_width: Optional[int] = Field(None, description="Image width in pixels")
+    image_height: Optional[int] = Field(None, description="Image height in pixels")
+
+    # Metadata
+    landmark_confidence: float = Field(..., description="Confidence of pose detection (0-1)")
+    processing_time_ms: float
