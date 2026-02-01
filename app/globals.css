@@ -233,3 +233,74 @@ body {
 .animate-scale-in {
   animation: scale-in 0.2s ease-out;
 }
+
+/* =============================================================================
+   GAMIFICATION ANIMATIONS
+   ============================================================================= */
+
+/* Streak flame animation */
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.05) rotate(-2deg);
+  }
+  50% {
+    transform: scale(1.1);
+    filter: brightness(1.1);
+  }
+  75% {
+    transform: scale(1.05) rotate(2deg);
+  }
+}
+
+.animate-flame {
+  animation: flame-flicker 2s ease-in-out infinite;
+}
+
+/* Toggle switch base styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  background: rgba(41, 45, 50, 0.1);
+  border-radius: 4px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  margin-top: -6px;
+  box-shadow: 0 2px 6px rgba(63, 155, 97, 0.3);
+  transition: transform 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  background: rgba(41, 45, 50, 0.1);
+  border-radius: 4px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 2px 6px rgba(63, 155, 97, 0.3);
+}

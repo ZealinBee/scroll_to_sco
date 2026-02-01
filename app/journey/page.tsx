@@ -18,7 +18,22 @@ import {
   RotateCcw,
   ArrowRight,
   Info,
+  Settings,
 } from "lucide-react";
+import {
+  GamificationState,
+  getOrInitializeState,
+  saveGamificationState,
+  markDayComplete,
+  unmarkDayComplete,
+  isTodayComplete,
+  getWeekCompletionStatus,
+  processWeekTransition,
+} from "@/app/lib/gamification";
+import { initializeNotifications } from "@/app/lib/notifications";
+import { StreakDisplay } from "@/app/components/StreakDisplay";
+import { WeeklyProgress } from "@/app/components/WeeklyProgress";
+import { RoutineCompletionButton } from "@/app/components/RoutineCompletionButton";
 import {
   Exercise,
   createAsymmetryProfile,
@@ -221,7 +236,7 @@ function ExerciseCard({
 
 // Findings Summary Component
 function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
-  const findings: { label: string; value: number; threshold: number; unit: string; severity: string; sideInfo?: string }[] = [];
+  const findings: { label: string; value: number; threshold: number; unit: string; severity: string; sideInfo?: string; displayValue?: string }[] = [];
 
   if (profile.shoulderHeightDiff >= THRESHOLDS.shoulderHeight.mild) {
     const side = profile.higherShoulder;
@@ -261,13 +276,17 @@ function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
   }
 
   if (profile.shoulderRotation >= THRESHOLDS.rotation.mild) {
+    const severity = profile.shoulderRotation >= THRESHOLDS.rotation.significant ? "significant" :
+                     profile.shoulderRotation >= THRESHOLDS.rotation.moderate ? "moderate" : "mild";
+    const severityLabel = severity === "significant" ? "Significant" : severity === "moderate" ? "Moderate" : "Mild";
     findings.push({
       label: "Shoulder rotation",
       value: profile.shoulderRotation * 100,
       threshold: THRESHOLDS.rotation.moderate * 100,
       unit: "",
-      severity: profile.shoulderRotation >= THRESHOLDS.rotation.significant ? "significant" :
-               profile.shoulderRotation >= THRESHOLDS.rotation.moderate ? "moderate" : "mild"
+      severity,
+      displayValue: `${severityLabel} asymmetry`,
+      sideInfo: "One shoulder rotates forward"
     });
   }
 
@@ -309,7 +328,7 @@ function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
           <div key={finding.label} className={`rounded-[12px] p-3 ${getSeverityColor(finding.severity)}`}>
             <p className="text-xs font-medium">{finding.label}</p>
             <p className="text-lg font-semibold">
-              {finding.value.toFixed(1)}{finding.unit}
+              {finding.displayValue ?? `${finding.value.toFixed(1)}${finding.unit}`}
             </p>
             {finding.sideInfo && (
               <p className="text-xs mt-1 opacity-80">{finding.sideInfo}</p>
@@ -346,6 +365,7 @@ export default function JourneyPage() {
   const [analysisType, setAnalysisType] = useState<"xray" | "photo" | null>(null);
   const [xrayData, setXrayData] = useState<XrayAnalysisData | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [gamificationState, setGamificationState] = useState<GamificationState | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -357,16 +377,28 @@ export default function JourneyPage() {
 
     // Load user profile for duration preference
     const storedProfile = localStorage.getItem("userProfile");
+    let goalDays = 4; // default
     if (storedProfile) {
       try {
         const profile = JSON.parse(storedProfile);
         setUserProfile({
           exerciseMinutesPerSession: profile.exerciseMinutesPerSession,
         });
+        goalDays = profile.exerciseDaysPerWeek || 4;
       } catch (e) {
         console.error("Failed to parse user profile:", e);
       }
     }
+
+    // Initialize gamification state
+    const gState = getOrInitializeState(goalDays);
+    // Process any week transitions
+    const processedState = processWeekTransition(gState);
+    setGamificationState(processedState);
+    saveGamificationState(processedState);
+
+    // Initialize notifications
+    initializeNotifications(processedState.notifications);
 
     // Check analysis type from sessionStorage
     const storedType = sessionStorage.getItem("analysisType");
@@ -504,11 +536,29 @@ export default function JourneyPage() {
     { id: "chat" as const, label: "AI Chat", icon: MessageCircle },
   ];
 
+  // Handle toggling today's completion
+  const handleToggleCompletion = () => {
+    if (!gamificationState) return;
+
+    let newState: GamificationState;
+    if (isTodayComplete(gamificationState)) {
+      newState = unmarkDayComplete(gamificationState);
+    } else {
+      newState = markDayComplete(gamificationState);
+    }
+
+    setGamificationState(newState);
+    saveGamificationState(newState);
+  };
+
+  const todayComplete = gamificationState ? isTodayComplete(gamificationState) : false;
+  const weekCompletionStatus = gamificationState ? getWeekCompletionStatus(gamificationState) : [false, false, false, false, false, false, false];
+
   return (
     <div className="min-h-screen px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <header>
+        <header className="flex items-center justify-between">
           <button
             onClick={() => router.push("/")}
             className="btn btn-ghost"
@@ -516,7 +566,32 @@ export default function JourneyPage() {
             <RotateCcw size={18} />
             New Analysis
           </button>
+
+          <div className="flex items-center gap-3">
+            {gamificationState && (
+              <StreakDisplay
+                streak={gamificationState.streakData.currentStreak}
+                freezeAvailable={gamificationState.streakData.streakFreezeAvailable}
+                compact
+              />
+            )}
+            <button
+              onClick={() => router.push("/settings")}
+              className="p-2 rounded-[12px] hover:bg-dark/5 transition-colors"
+            >
+              <Settings size={20} className="text-muted" />
+            </button>
+          </div>
         </header>
+
+        {/* Weekly Progress */}
+        {gamificationState && (
+          <WeeklyProgress
+            completionStatus={weekCompletionStatus}
+            daysCompleted={gamificationState.currentWeek.daysExercised}
+            goalDays={gamificationState.currentWeek.goalDays}
+          />
+        )}
 
         {/* Tab Navigation */}
         <div className="glass p-1.5 flex gap-1">
@@ -636,6 +711,14 @@ export default function JourneyPage() {
                           ))}
                         </div>
                       )}
+
+                      {/* Completion Button */}
+                      <div className="pt-4 border-t border-dark/5">
+                        <RoutineCompletionButton
+                          isComplete={todayComplete}
+                          onToggle={handleToggleCompletion}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
