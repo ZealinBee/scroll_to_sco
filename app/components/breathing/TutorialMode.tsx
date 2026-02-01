@@ -13,9 +13,14 @@ import { RAB_TUTORIAL_URL } from "@/app/lib/breathing-instructions";
 
 interface TutorialModeProps {
   onStartExercise: () => void;
+  trunkShiftDirection?: "left" | "right";
 }
 
-export default function TutorialMode({ onStartExercise }: TutorialModeProps) {
+export default function TutorialMode({ onStartExercise, trunkShiftDirection }: TutorialModeProps) {
+  // Determine concave and convex sides based on trunk shift
+  // Convex = side trunk shifts toward, Concave = opposite
+  const convexSide = trunkShiftDirection || "right";
+  const concaveSide = convexSide === "right" ? "left" : "right";
   return (
     <div className="space-y-6">
       {/* Hero section */}
@@ -67,7 +72,7 @@ export default function TutorialMode({ onStartExercise }: TutorialModeProps) {
               icon: Target,
               title: "Targeted Expansion",
               description:
-                "Expands collapsed areas of the ribcage on the concave side of your curve",
+                `Expands collapsed areas of the ribcage on your ${concaveSide} side`,
             },
             {
               icon: Wind,
@@ -124,8 +129,7 @@ export default function TutorialMode({ onStartExercise }: TutorialModeProps) {
             <div>
               <p className="text-sm text-dark">
                 <span className="font-medium">Directed breathing</span> - During
-                inhalation, you consciously direct your breath into the collapsed
-                (concave) side.
+                inhalation, you consciously direct your breath into your {concaveSide} side.
               </p>
             </div>
           </div>

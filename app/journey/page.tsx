@@ -63,17 +63,58 @@ interface AnalysisData {
   analyzedAt: string;
 }
 
+// Helper to personalize exercise text based on user's asymmetry profile
+function personalizeText(text: string, profile: AsymmetryProfile | null): string {
+  if (!profile) return text;
+
+  // For trunk shift:
+  // - Convex side = side trunk shifts TOWARD (trunkShiftDirection)
+  // - Concave side = side OPPOSITE to trunk shift
+  const convexSide = profile.trunkShiftDirection || "right";
+  const concaveSide = convexSide === "right" ? "left" : "right";
+
+  let personalized = text;
+
+  // Replace variations of "concave side" with actual side
+  personalized = personalized.replace(
+    /\b(the\s+)?concave\s+side(\s*\([^)]*\))?/gi,
+    `your ${concaveSide} side`
+  );
+  personalized = personalized.replace(
+    /\bon\s+the\s+concave\s+side/gi,
+    `on your ${concaveSide} side`
+  );
+
+  // Replace variations of "convex side" with actual side
+  personalized = personalized.replace(
+    /\b(the\s+)?convex\s+side(\s*\([^)]*\))?/gi,
+    `your ${convexSide} side`
+  );
+  personalized = personalized.replace(
+    /\bon\s+the\s+convex\s+side/gi,
+    `on your ${convexSide} side`
+  );
+
+  // Handle "your concave" without "side"
+  personalized = personalized.replace(/your concave\b/gi, `your ${concaveSide}`);
+  personalized = personalized.replace(/your convex\b/gi, `your ${convexSide}`);
+
+  return personalized;
+}
+
 // Exercise Card Component
 function ExerciseCard({
   exercise,
   isExpanded,
   onToggle,
   relevantFor,
+  profile,
 }: {
   exercise: Exercise;
   isExpanded: boolean;
   onToggle: () => void;
   relevantFor?: string[];
+  profile?: AsymmetryProfile | null;
 }) {
   const difficultyColor = {
     beginner: "bg-primary/10 text-primary",
@@ -114,7 +155,7 @@ function ExerciseCard({
         <div className="px-4 pb-4 space-y-4 border-t border-dark/5 pt-4">
           {/* Description */}
           <p className="text-sm text-muted leading-relaxed">
-            {exercise.description}
+            {personalizeText(exercise.description, profile || null)}
           </p>
 
           {/* Why this exercise */}
@@ -144,7 +185,7 @@ function ExerciseCard({
                   <span className="w-5 h-5 rounded-full bg-dark/5 flex items-center justify-center flex-shrink-0 text-xs text-dark font-medium">
                     {i + 1}
                   </span>
-                  <span className="leading-relaxed">{step}</span>
+                  <span className="leading-relaxed">{personalizeText(step, profile || null)}</span>
                 </li>
               ))}
             </ol>
@@ -296,6 +337,10 @@ interface XrayAnalysisData {
   primary_cobb_angle: number;
 }
 
+interface UserProfile {
+  exerciseMinutesPerSession?: number;
+}
+
 export default function JourneyPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"exercises" | "breathing" | "progress" | "chat">("exercises");
@@ -307,6 +352,7 @@ export default function JourneyPage() {
   const [showRoutine, setShowRoutine] = useState(true);
   const [analysisType, setAnalysisType] = useState<"xray" | "photo" | null>(null);
   const [xrayData, setXrayData] = useState<XrayAnalysisData | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -314,6 +360,19 @@ export default function JourneyPage() {
     const storedPhotos = localStorage.getItem("progressPhotos");
     if (storedPhotos) {
       setProgressPhotos(JSON.parse(storedPhotos));
+    }
+
+    // Load user profile for duration preference
+    const storedProfile = localStorage.getItem("userProfile");
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        setUserProfile({
+          exerciseMinutesPerSession: profile.exerciseMinutesPerSession,
+        });
+      } catch (e) {
+        console.error("Failed to parse user profile:", e);
+      }
     }
 
     // Check analysis type from sessionStorage
@@ -392,8 +451,10 @@ export default function JourneyPage() {
     }
   }, []);
 
-  // Get daily routine
-  const dailyRoutine = asymmetryProfile ? getDailyRoutine(asymmetryProfile) : null;
+  // Get daily routine with user's preferred duration
+  const dailyRoutine = asymmetryProfile
+    ? getDailyRoutine(asymmetryProfile, userProfile?.exerciseMinutesPerSession)
+    : null;
 
   // Get relevance reasons for an exercise
   const getRelevanceReasons = (exercise: Exercise): string[] => {
@@ -543,6 +604,7 @@ export default function JourneyPage() {
                               isExpanded={expandedExercise === exercise.id}
                               onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
                               relevantFor={getRelevanceReasons(exercise)}
+                              profile={asymmetryProfile}
                             />
                           ))}
                         </div>
@@ -559,6 +621,7 @@ export default function JourneyPage() {
                               isExpanded={expandedExercise === exercise.id}
                               onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
                               relevantFor={getRelevanceReasons(exercise)}
+                              profile={asymmetryProfile}
                             />
                           ))}
                         </div>
@@ -575,6 +638,7 @@ export default function JourneyPage() {
                               isExpanded={expandedExercise === exercise.id}
                               onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
                               relevantFor={getRelevanceReasons(exercise)}
+                              profile={asymmetryProfile}
                             />
                           ))}
                         </div>
@@ -584,32 +648,8 @@ export default function JourneyPage() {
                 </div>
               )}
 
-              {/* All Recommended Exercises */}
-              {recommendedExercises.length > 0 ? (
-                <div className="glass p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
-                      <Dumbbell size={20} className="text-primary" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-dark">All Recommended Exercises</h2>
-                      <p className="text-xs text-muted">{recommendedExercises.length} exercises matched to your analysis</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {recommendedExercises.map((exercise) => (
-                      <ExerciseCard
-                        key={exercise.id}
-                        exercise={exercise}
-                        isExpanded={expandedExercise === exercise.id}
-                        onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
-                        relevantFor={getRelevanceReasons(exercise)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : (
+              {/* No analysis fallback */}
+              {recommendedExercises.length === 0 && (
                 <div className="glass p-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">

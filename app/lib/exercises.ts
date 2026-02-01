@@ -832,61 +832,109 @@ export function createAsymmetryProfile(
 }
 
 /**
+ * Parse duration string (e.g., "3-4 minutes") to get average minutes
+ */
+function parseDuration(duration: string): number {
+  const match = duration.match(/(\d+)(?:-(\d+))?\s*min/i);
+  if (match) {
+    const min = parseInt(match[1]);
+    const max = match[2] ? parseInt(match[2]) : min;
+    return (min + max) / 2;
+  }
+  return 3; // default 3 minutes
+}
+
+/**
  * Get a daily routine based on the asymmetry profile
  * Returns a structured routine with warm-up, main exercises, and cool-down
+ * @param profile - User's asymmetry profile
+ * @param targetDuration - Target duration in minutes (from user preferences)
  */
-export function getDailyRoutine(profile: AsymmetryProfile): {
+export function getDailyRoutine(profile: AsymmetryProfile, targetDuration?: number): {
   warmup: Exercise[];
   main: Exercise[];
   cooldown: Exercise[];
   estimatedTime: number;
 } {
   const recommended = getRecommendedExercises(profile);
+  const usedIds = new Set<string>();
 
-  // Warm-up: General mobility exercises
-  const warmup = recommended
-    .filter(
-      (e) =>
-        e.targetAsymmetries.includes("general_posture") &&
-        e.difficulty === "beginner"
-    )
-    .slice(0, 2);
+  // Helper to add exercise and track used IDs
+  const addExercise = (exercise: Exercise) => {
+    usedIds.add(exercise.id);
+    return exercise;
+  };
 
-  // Main: Targeted exercises for specific asymmetries
-  const main = recommended
-    .filter(
-      (e) =>
-        !e.targetAsymmetries.includes("general_posture") ||
-        e.targetAsymmetries.length > 1
-    )
-    .slice(0, 5);
+  // Helper to check if exercise is not yet used
+  const isNotUsed = (e: Exercise) => !usedIds.has(e.id);
 
-  // Cool-down: Stretching exercises
-  const cooldown = recommended
-    .filter(
-      (e) =>
-        e.name.toLowerCase().includes("stretch") ||
-        e.id.includes("stretch")
-    )
-    .slice(0, 2);
+  // Warm-up: General mobility exercises (exclude stretches for cooldown)
+  const warmupCandidates = recommended.filter(
+    (e) =>
+      e.targetAsymmetries.includes("general_posture") &&
+      e.difficulty === "beginner" &&
+      !e.name.toLowerCase().includes("stretch") &&
+      !e.id.includes("stretch")
+  );
+  const warmup = warmupCandidates.slice(0, 2).map(addExercise);
 
-  // If we don't have enough in any category, fill with general exercises
-  while (warmup.length < 2 && recommended.length > warmup.length) {
-    const next = recommended.find(
-      (e) =>
-        !warmup.includes(e) &&
-        !main.includes(e) &&
-        e.difficulty === "beginner"
-    );
-    if (next) warmup.push(next);
-    else break;
+  // Cool-down: Stretching exercises (reserve these, don't include in main)
+  const cooldownCandidates = recommended.filter(
+    (e) =>
+      isNotUsed(e) &&
+      (e.name.toLowerCase().includes("stretch") || e.id.includes("stretch"))
+  );
+  const cooldown = cooldownCandidates.slice(0, 2).map(addExercise);
+
+  // Main: Targeted exercises for specific asymmetries (exclude already used)
+  const mainCandidates = recommended.filter(
+    (e) =>
+      isNotUsed(e) &&
+      (!e.targetAsymmetries.includes("general_posture") ||
+        e.targetAsymmetries.length > 1)
+  );
+
+  // Calculate how many main exercises we can fit
+  const warmupTime = warmup.reduce((t, e) => t + parseDuration(e.duration), 0);
+  const cooldownTime = cooldown.reduce((t, e) => t + parseDuration(e.duration), 0);
+  const availableForMain = targetDuration
+    ? Math.max(0, targetDuration - warmupTime - cooldownTime)
+    : 20; // default ~20 min for main if no target
+
+  // Add main exercises until we reach target duration
+  const main: Exercise[] = [];
+  let mainTime = 0;
+
+  for (const exercise of mainCandidates) {
+    const exerciseTime = parseDuration(exercise.duration);
+    if (targetDuration && mainTime + exerciseTime > availableForMain && main.length >= 3) {
+      break; // Stop if we'd exceed target (but ensure at least 3 exercises)
+    }
+    main.push(addExercise(exercise));
+    mainTime += exerciseTime;
+
+    // Cap at reasonable number if no target duration
+    if (!targetDuration && main.length >= 5) break;
   }
 
-  // Estimate total time (very rough estimate)
-  const estimatedTime =
-    warmup.reduce((t, e) => t + parseInt(e.duration) || 3, 0) +
-    main.reduce((t, e) => t + parseInt(e.duration) || 4, 0) +
-    cooldown.reduce((t, e) => t + parseInt(e.duration) || 3, 0);
+  // Fill warmup if needed with beginner exercises not yet used
+  while (warmup.length < 2) {
+    const next = recommended.find(
+      (e) => isNotUsed(e) && e.difficulty === "beginner"
+    );
+    if (next) {
+      warmup.push(addExercise(next));
+    } else {
+      break;
+    }
+  }
+
+  // Calculate actual total time
+  const estimatedTime = Math.round(
+    warmup.reduce((t, e) => t + parseDuration(e.duration), 0) +
+    main.reduce((t, e) => t + parseDuration(e.duration), 0) +
+    cooldown.reduce((t, e) => t + parseDuration(e.duration), 0)
+  );
 
   return { warmup, main, cooldown, estimatedTime };
 }

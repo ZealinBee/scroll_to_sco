@@ -275,7 +275,10 @@ export default function BreathingExercise({
 
       {/* Tutorial Mode */}
       {mode === "tutorial" && (
-        <TutorialMode onStartExercise={() => setMode("exercise")} />
+        <TutorialMode
+          onStartExercise={() => setMode("exercise")}
+          trunkShiftDirection={photoDisplayData?.trunkShiftDirection}
+        />
       )}
 
       {/* Exercise Mode */}
