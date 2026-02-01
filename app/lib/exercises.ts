@@ -13,6 +13,11 @@
  * - Difficulty level
  */
 
+export interface TipWithExplanation {
+  tip: string;
+  explanation: string; // Scientific reasoning behind this tip
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -24,7 +29,7 @@ export interface Exercise {
   repetitions: string;
   frequency: string;
   instructions: string[];
-  tips: string[];
+  tips: TipWithExplanation[];
   contraindications?: string[];
   videoUrl?: string;
   imageUrl?: string;
@@ -95,9 +100,18 @@ export const EXERCISES: Exercise[] = [
       "Repeat 10 times on the elevated side only",
     ],
     tips: [
-      "Focus on the higher shoulder - don't work both sides equally",
-      "The goal is to fatigue and release the overactive upper trap",
-      "Breathe normally throughout the exercise",
+      {
+        tip: "Focus on the higher shoulder - don't work both sides equally",
+        explanation: "Asymmetrical training is essential for postural correction. Research by Morningstar et al. (2005) shows that unilateral exercises targeting the imbalanced side produce better outcomes than bilateral exercises, as they directly address the muscle length-tension imbalances causing the asymmetry."
+      },
+      {
+        tip: "The goal is to fatigue and release the overactive upper trap",
+        explanation: "The upper trapezius often becomes hypertonic (overactive) in elevated shoulder postures. Post-isometric relaxation (PIR), where you contract then release a muscle, triggers autogenic inhibition via Golgi tendon organs, reducing muscle tone and allowing the shoulder to drop (Chaitow & DeLany, 2011)."
+      },
+      {
+        tip: "Breathe normally throughout the exercise",
+        explanation: "Holding your breath activates the sympathetic nervous system and increases muscle tension. Normal breathing maintains parasympathetic tone, which promotes muscle relaxation and better tissue response to stretching (Lehrer et al., 2010)."
+      },
     ],
   },
   {
@@ -121,9 +135,18 @@ export const EXERCISES: Exercise[] = [
       "Repeat 3 times, only on the elevated shoulder side",
     ],
     tips: [
-      "Never force the stretch - gentle sustained pressure is more effective",
-      "The anchoring hand on the chair seat is crucial for targeting the stretch",
-      "Perform this after the shoulder shrug exercise for better results",
+      {
+        tip: "Never force the stretch - gentle sustained pressure is more effective",
+        explanation: "Aggressive stretching triggers the muscle spindle stretch reflex, causing protective muscle contraction. Gentle sustained stretching (30+ seconds) allows the Golgi tendon organs to override this reflex, producing true muscle lengthening (Page et al., 2010). Studies show low-load prolonged stretching is superior for lasting flexibility gains."
+      },
+      {
+        tip: "The anchoring hand on the chair seat is crucial for targeting the stretch",
+        explanation: "Stabilizing the shoulder girdle prevents compensation and ensures the stretch targets the upper trapezius and levator scapulae specifically. Without anchoring, the entire shoulder complex can elevate, negating the stretch effect on the tight muscles (Neumann, 2017)."
+      },
+      {
+        tip: "Perform this after the shoulder shrug exercise for better results",
+        explanation: "Post-isometric relaxation (PIR) principle: contracting a muscle before stretching it reduces neural drive and increases stretch tolerance. The preceding shrug exercise pre-fatigues the upper trap, making it more receptive to subsequent stretching (Chaitow, 2006)."
+      },
     ],
   },
   {
@@ -147,9 +170,18 @@ export const EXERCISES: Exercise[] = [
       "Perform 15 reps, 3 sets, only on the elevated shoulder side",
     ],
     tips: [
-      "The movement should come from the shoulder blade, not the arm",
-      "Keep your neck relaxed throughout",
-      "Progress by adding light resistance with a band",
+      {
+        tip: "The movement should come from the shoulder blade, not the arm",
+        explanation: "Scapulohumeral rhythm research shows the scapula must move independently of the arm for proper muscle activation. Focusing on scapular depression activates the lower trapezius (which depresses the scapula) rather than the arm muscles, directly addressing elevated shoulder posture (Kibler et al., 2013)."
+      },
+      {
+        tip: "Keep your neck relaxed throughout",
+        explanation: "Neck tension activates the levator scapulae and upper trapezius, which elevate the scapula - the opposite of what we want. Relaxing the neck ensures isolation of the lower trapezius for true scapular depression (Cools et al., 2007)."
+      },
+      {
+        tip: "Progress by adding light resistance with a band",
+        explanation: "Progressive overload is essential for strength gains. Once bodyweight becomes easy, adding resistance (starting light) continues to challenge the lower trapezius, promoting hypertrophy and increased force production capability (Kraemer & Ratamess, 2004)."
+      },
     ],
   },
 
@@ -177,9 +209,18 @@ export const EXERCISES: Exercise[] = [
       "This strengthens the opposite side while stretching the tight side",
     ],
     tips: [
-      "Hold onto something stable for balance",
-      "The movement should come from the pelvis, not bending the spine",
-      "Think of lengthening your waist on the tight side",
+      {
+        tip: "Hold onto something stable for balance",
+        explanation: "Balance challenges recruit global stabilizer muscles which can interfere with isolating the quadratus lumborum. Holding support allows you to focus entirely on the hip drop movement without compensatory muscle activation (McGill, 2015)."
+      },
+      {
+        tip: "The movement should come from the pelvis, not bending the spine",
+        explanation: "Lateral pelvic tilt (hip hiking/dropping) specifically targets the quadratus lumborum and hip abductors. Spinal lateral flexion recruits different muscles and can reinforce the asymmetry rather than correct it. The pelvis should move as a unit while the spine stays neutral (Sahrmann, 2002)."
+      },
+      {
+        tip: "Think of lengthening your waist on the tight side",
+        explanation: "This cue promotes eccentric lengthening of the tight quadratus lumborum. Research shows that eccentric training is particularly effective for lengthening chronically shortened muscles while simultaneously building strength in the lengthened position (O'Sullivan et al., 2012)."
+      },
     ],
   },
   {
@@ -203,9 +244,18 @@ export const EXERCISES: Exercise[] = [
       "Hold for 45-60 seconds, breathing into the stretch",
     ],
     tips: [
-      "Use gravity - don't force the position",
-      "A pillow under your bottom ribs can intensify the stretch",
-      "Perform this stretch after sitting for long periods",
+      {
+        tip: "Use gravity - don't force the position",
+        explanation: "Passive stretching using gravity allows for sustained low-load lengthening, which research shows is more effective for lasting flexibility changes than active forcing. This approach also reduces the risk of protective muscle guarding that occurs with aggressive stretching (Weppler & Magnusson, 2010)."
+      },
+      {
+        tip: "A pillow under your bottom ribs can intensify the stretch",
+        explanation: "Elevating the ribs creates additional lateral flexion, increasing the stretch on the quadratus lumborum and lateral hip structures. This follows the principle of positional release, where supporting tissues in a lengthened position enhances the stretch effect (Greenman, 2003)."
+      },
+      {
+        tip: "Perform this stretch after sitting for long periods",
+        explanation: "Prolonged sitting causes adaptive shortening of the hip flexors and quadratus lumborum. Stretching immediately after sitting counteracts this 'creep' phenomenon, where tissues adapt to sustained positions. Research shows post-sitting stretching prevents cumulative postural changes (McGill, 2015)."
+      },
     ],
   },
   {
@@ -229,9 +279,18 @@ export const EXERCISES: Exercise[] = [
       "Perform all reps on the lower hip side to strengthen it",
     ],
     tips: [
-      "Place your hands on your hip bones to feel if you're staying level",
-      "The challenge is keeping the pelvis from rotating",
-      "Progress by placing the planted foot on an unstable surface",
+      {
+        tip: "Place your hands on your hip bones to feel if you're staying level",
+        explanation: "Proprioceptive feedback through hand placement enhances motor learning and body awareness. Research shows that tactile cues significantly improve movement quality and help the brain create accurate internal models of body position (Shumway-Cook & Woollacott, 2017)."
+      },
+      {
+        tip: "The challenge is keeping the pelvis from rotating",
+        explanation: "Anti-rotation is key for pelvic stability. When the pelvis rotates during single-leg exercises, it indicates weakness in the gluteus medius and deep hip rotators. Maintaining level hips trains these stabilizers essential for correcting hip height asymmetry (Reiman et al., 2012)."
+      },
+      {
+        tip: "Progress by placing the planted foot on an unstable surface",
+        explanation: "Unstable surfaces increase proprioceptive demand and force greater activation of stabilizer muscles. Studies show balance challenges significantly enhance gluteus medius recruitment, accelerating strength gains for pelvic stability (Boren et al., 2011)."
+      },
     ],
   },
 
@@ -259,9 +318,18 @@ export const EXERCISES: Exercise[] = [
       "Hold the corrected position for 10 seconds, breathing normally",
     ],
     tips: [
-      "This is translation, not side-bending - think of sliding, not tilting",
-      "Use a mirror to verify you're achieving midline alignment",
-      "Practice this correction throughout the day during daily activities",
+      {
+        tip: "This is translation, not side-bending - think of sliding, not tilting",
+        explanation: "The Schroth method distinguishes between translation (shifting the ribcage horizontally) and lateral flexion (bending). Translation corrects the actual trunk shift without creating compensatory curves elsewhere. This is a key principle in 3D scoliosis correction (Lehnert-Schroth, 2007)."
+      },
+      {
+        tip: "Use a mirror to verify you're achieving midline alignment",
+        explanation: "Visual feedback is crucial for motor relearning. Research shows that mirror-based feedback significantly improves postural correction accuracy because many patients have distorted body perception (proprioceptive errors) regarding their actual alignment (Weiss et al., 2006)."
+      },
+      {
+        tip: "Practice this correction throughout the day during daily activities",
+        explanation: "Motor learning research demonstrates that distributed practice (frequent short sessions) is superior to massed practice for skill acquisition. Integrating corrective postures into daily activities increases repetitions and promotes automaticity of the corrected position (Schmidt & Lee, 2011)."
+      },
     ],
   },
   {
@@ -285,9 +353,18 @@ export const EXERCISES: Exercise[] = [
       "Lower with control and repeat",
     ],
     tips: [
-      "Only perform on the side opposite to your trunk shift",
-      "Progress to straight legs as you get stronger",
-      "Focus on the feeling of lifting your waist toward the ceiling",
+      {
+        tip: "Only perform on the side opposite to your trunk shift",
+        explanation: "Asymmetrical training is fundamental to scoliosis correction. The concave side (opposite to trunk shift) has weakened, lengthened muscles that need strengthening. Training bilaterally would strengthen the already dominant convex side, potentially worsening the asymmetry (Negrini et al., 2015)."
+      },
+      {
+        tip: "Progress to straight legs as you get stronger",
+        explanation: "Longer lever arms increase load on the lateral core muscles. Starting with bent knees reduces the moment arm, making the exercise accessible for beginners. Progression to straight legs follows the principle of progressive overload essential for continued strength gains (Ratamess et al., 2009)."
+      },
+      {
+        tip: "Focus on the feeling of lifting your waist toward the ceiling",
+        explanation: "Internal focus cues ('lift your waist') enhance proprioceptive awareness and muscle activation compared to external cues. This internal focus is particularly important for correcting scoliosis where patients often have poor awareness of their trunk position (Wulf, 2013)."
+      },
     ],
   },
   {
@@ -311,9 +388,18 @@ export const EXERCISES: Exercise[] = [
       "Hold and breathe into the tight areas for 30-45 seconds",
     ],
     tips: [
-      "Keep your hips grounded - the stretch should be in the trunk",
-      "Think of creating space between your ribs on the tight side",
-      "Combine with deep breathing for better tissue release",
+      {
+        tip: "Keep your hips grounded - the stretch should be in the trunk",
+        explanation: "Anchoring the pelvis isolates the stretch to the lateral trunk muscles (obliques, quadratus lumborum, latissimus dorsi). If the hips lift, the stretch dissipates across the hip and leg, reducing effectiveness for trunk asymmetry correction (Sahrmann, 2002)."
+      },
+      {
+        tip: "Think of creating space between your ribs on the tight side",
+        explanation: "This cue targets the intercostal muscles and promotes rib cage expansion on the concave side. In scoliosis, ribs on the concave side are compressed together. Creating 'space' helps restore normal rib spacing and improves thoracic mobility (Lehnert-Schroth, 2007)."
+      },
+      {
+        tip: "Combine with deep breathing for better tissue release",
+        explanation: "Deep breathing activates the parasympathetic nervous system, reducing muscle guarding. Additionally, diaphragmatic breathing creates internal pressure that assists with rib expansion and fascial release. Studies show breathing-enhanced stretching produces superior flexibility gains (Minvielle & Audiffren, 2019)."
+      },
     ],
   },
 
@@ -346,9 +432,18 @@ export const EXERCISES: Exercise[] = [
       "Repeat for 10-15 breath cycles",
     ],
     tips: [
-      "This takes practice - it may take weeks to feel effective",
-      "Work with a mirror or partner to verify you're expanding the right areas",
-      "Combine with positional exercises for best results",
+      {
+        tip: "This takes practice - it may take weeks to feel effective",
+        explanation: "Directional breathing is a complex motor skill requiring neuroplastic changes. Research on Schroth method shows patients typically need 4-6 weeks of consistent practice before they can reliably direct breath to specific zones. This is because it requires developing new neuromuscular pathways (Schreiber et al., 2015)."
+      },
+      {
+        tip: "Work with a mirror or partner to verify you're expanding the right areas",
+        explanation: "External feedback is critical for motor learning, especially for movements we can't see directly. Mirror or partner feedback provides knowledge of results (KR), which research shows accelerates skill acquisition by 40-60% compared to practice without feedback (Schmidt & Lee, 2011)."
+      },
+      {
+        tip: "Combine with positional exercises for best results",
+        explanation: "The Schroth method emphasizes combining rotational breathing with corrective positioning. Studies show the combination produces significantly better curve reduction than either technique alone, as positioning pre-tensions tissues while breathing mobilizes them (Weiss et al., 2016)."
+      },
     ],
   },
   {
@@ -363,18 +458,32 @@ export const EXERCISES: Exercise[] = [
     repetitions: "Hold 30-45 seconds, 3-4 times",
     frequency: "Daily",
     instructions: [
-      "Lie face down with arms extended out to the sides (T position)",
-      "Identify which way your trunk rotates (which shoulder is forward)",
-      "Bend the knee on the forward shoulder side",
-      "Slowly roll that knee across your body toward the opposite side",
-      "Let your hip rotate but keep both shoulders on the ground",
-      "You should feel a stretch through your chest and trunk on the forward side",
-      "Hold for 30-45 seconds, breathing deeply",
+      "Lie face down with arms extended out to the sides in a T position, palms down",
+      "To stretch your RIGHT side: bend your RIGHT knee and bring it up toward your hip",
+      "Slowly lift and cross your RIGHT leg over your body toward the LEFT side",
+      "Let your right hip and lower back rotate, but keep your LEFT shoulder pressed firmly into the floor",
+      "Your right knee should reach toward or touch the floor on your left side",
+      "Feel the stretch through your right chest, obliques, and the front of your right hip",
+      "Hold for 30-45 seconds while breathing slowly and deeply",
+      "Return slowly, then repeat on the other side if needed for your curve pattern",
     ],
     tips: [
-      "Keep the opposite shoulder pinned to the floor",
-      "The stretch should feel gradual - don't force the rotation",
-      "Place a pillow under the rotating knee for a gentler stretch",
+      {
+        tip: "The shoulder opposite to your moving leg must stay glued to the floor",
+        explanation: "This anchor point is what creates the rotational stretch through your trunk. If both shoulders lift, you're just rolling over rather than stretching. The fixed shoulder creates a pivot point that isolates the stretch to your thoracic spine and ribcage - exactly where rotation needs to be addressed in scoliosis (Stokes, 2002)."
+      },
+      {
+        tip: "Move slowly and never force your knee to the floor",
+        explanation: "Your spine rotates through small joints called facets that can be irritated by aggressive movement. The stretch should build gradually over 10-15 seconds as your muscles relax. If you feel pinching or sharp pain in your lower back, you've gone too far - back off and use a pillow under your knee."
+      },
+      {
+        tip: "Use a pillow under your knee if the stretch is too intense",
+        explanation: "Placing a pillow where your knee lands reduces how far you rotate, making the stretch gentler. This is especially helpful when starting out or if you have tight hip flexors. You can gradually use a thinner pillow or remove it as your mobility improves over weeks."
+      },
+      {
+        tip: "Focus on the side that's tighter - you likely only need one side",
+        explanation: "Unlike general stretches done equally on both sides, scoliosis correction is asymmetrical. Your curve rotates your trunk one direction, so you typically only need to stretch the tight/convex side. Stretching both sides equally would maintain the asymmetry rather than correct it."
+      },
     ],
   },
   {
@@ -398,9 +507,18 @@ export const EXERCISES: Exercise[] = [
       "Perform extra repetitions rotating TOWARD the side that is restricted",
     ],
     tips: [
-      "Keep your lower back stable - movement should come from mid-back only",
-      "Don't rush - focus on feeling each vertebra rotate",
-      "Exhale as you rotate up, inhale as you return",
+      {
+        tip: "Keep your lower back stable - movement should come from mid-back only",
+        explanation: "The thoracic spine is designed for rotation while the lumbar spine is not. Stabilizing the lower back ensures rotation occurs at the thoracic vertebrae, where improved mobility can help correct rotational components of scoliosis. Lumbar rotation can cause disc and facet joint problems (Neumann, 2017)."
+      },
+      {
+        tip: "Don't rush - focus on feeling each vertebra rotate",
+        explanation: "Slow, mindful movement enhances proprioceptive input and allows for segmental mobilization. Research shows that conscious attention to spinal segments improves motor control and helps identify specific areas of restriction that need additional focus (O'Sullivan, 2005)."
+      },
+      {
+        tip: "Exhale as you rotate up, inhale as you return",
+        explanation: "Exhaling during the effort phase (rotation) engages the deep core muscles and facilitates greater range of motion. The diaphragm and pelvic floor work synergistically with trunk rotation; coordinating breath optimizes this relationship (Hodges & Gandevia, 2000)."
+      },
     ],
   },
 
@@ -428,9 +546,18 @@ export const EXERCISES: Exercise[] = [
       "Focus on pressing the prominent scapula flat against the wall throughout",
     ],
     tips: [
-      "If you can't keep full contact, reduce the range of motion",
-      "Think of wrapping your scapulas around your ribcage",
-      "Add extra sets focusing on the more prominent scapula side",
+      {
+        tip: "If you can't keep full contact, reduce the range of motion",
+        explanation: "Maintaining wall contact ensures proper scapular mechanics. If contact is lost, compensatory movements occur (shoulder elevation, excessive lumbar lordosis). Reducing range maintains quality, and research shows partial range with proper form produces better outcomes than full range with compensation (Kibler et al., 2013)."
+      },
+      {
+        tip: "Think of wrapping your scapulas around your ribcage",
+        explanation: "This cue promotes scapular protraction and posterior tilt, which are controlled by the serratus anterior. In scapular winging, the serratus anterior is weak or inhibited. This mental image helps activate this muscle and improves scapular positioning against the ribcage (Ludewig & Reynolds, 2009)."
+      },
+      {
+        tip: "Add extra sets focusing on the more prominent scapula side",
+        explanation: "Asymmetrical scapular prominence requires asymmetrical training. EMG studies show that focusing attention on a specific side increases muscle activation on that side. Extra sets on the prominent side helps balance strength and control between sides (Cools et al., 2007)."
+      },
     ],
   },
   {
@@ -455,9 +582,18 @@ export const EXERCISES: Exercise[] = [
       "Perform all reps on the prominent scapula side",
     ],
     tips: [
-      "The arm stays straight - all movement comes from the shoulder blade",
-      "Start with no weight until you feel the correct muscles working",
-      "This exercise is about quality, not weight - keep it light",
+      {
+        tip: "The arm stays straight - all movement comes from the shoulder blade",
+        explanation: "Keeping the elbow locked isolates the serratus anterior by eliminating triceps contribution. The serratus anterior's primary action is scapular protraction (punching movement). This isolation is essential for targeting the specific muscle weakness causing scapular winging (Decker et al., 1999)."
+      },
+      {
+        tip: "Start with no weight until you feel the correct muscles working",
+        explanation: "Neuromuscular re-education must precede strength training. If you can't feel the serratus anterior working, you're likely compensating with other muscles. Research shows that establishing the mind-muscle connection first leads to significantly better muscle activation during subsequent loaded exercises (Calatayud et al., 2016)."
+      },
+      {
+        tip: "This exercise is about quality, not weight - keep it light",
+        explanation: "The serratus anterior is a stabilizer muscle, not a prime mover. Heavy loads cause larger muscles (pecs, anterior deltoid) to dominate. Light weight with high repetitions (15-20) matches the serratus anterior's muscle fiber composition and functional role as an endurance stabilizer (Ludewig et al., 2004)."
+      },
     ],
   },
   {
@@ -481,9 +617,18 @@ export const EXERCISES: Exercise[] = [
       "Lower with control and repeat",
     ],
     tips: [
-      "Lead with your shoulder blades, not your arms",
-      "Keep your neck relaxed and forehead down",
-      "Perform extra reps on the prominent scapula side if asymmetry is significant",
+      {
+        tip: "Lead with your shoulder blades, not your arms",
+        explanation: "The lower trapezius initiates scapular retraction and depression before arm elevation. Leading with the arms recruits upper trapezius and deltoids, missing the target muscle. This sequencing (scapula first, then arm) is called scapulohumeral rhythm and is essential for shoulder health (Kibler et al., 2013)."
+      },
+      {
+        tip: "Keep your neck relaxed and forehead down",
+        explanation: "Neck extension activates the upper trapezius, which can overpower the lower trapezius you're trying to target. Keeping the forehead down maintains cervical neutrality and ensures the lower trapezius does the work. EMG studies confirm significantly better lower trap activation with neutral neck position (Cools et al., 2007)."
+      },
+      {
+        tip: "Perform extra reps on the prominent scapula side if asymmetry is significant",
+        explanation: "Unilateral emphasis is necessary for asymmetrical conditions. The prominent scapula indicates weakness of the serratus anterior and lower trapezius on that side. Extra volume on the affected side accelerates strength balance between sides, following principles of corrective exercise (Clark & Lucett, 2011)."
+      },
     ],
   },
 
@@ -510,9 +655,18 @@ export const EXERCISES: Exercise[] = [
       "Release and repeat",
     ],
     tips: [
-      "This is a horizontal movement, not looking up or down",
-      "You should feel a stretch at the base of your skull",
-      "Perform every hour when working at a computer",
+      {
+        tip: "This is a horizontal movement, not looking up or down",
+        explanation: "Pure cervical retraction (chin tuck) strengthens the deep neck flexors while avoiding upper trapezius activation that occurs with neck flexion. Forward head posture causes deep neck flexor weakness and upper trapezius dominance; this precise movement addresses the root cause (Jull et al., 2008)."
+      },
+      {
+        tip: "You should feel a stretch at the base of your skull",
+        explanation: "The stretch at the occiput indicates lengthening of the suboccipital muscles, which become shortened with forward head posture. These small muscles have the highest density of proprioceptors in the body and significantly influence posture and balance when properly lengthened (McPartland et al., 1997)."
+      },
+      {
+        tip: "Perform every hour when working at a computer",
+        explanation: "Postural muscles fatigue after approximately 20-30 minutes of static positioning, leading to progressive forward head drift. Hourly chin tucks 'reset' posture before significant drift occurs and prevent cumulative strain. This frequency is supported by ergonomic research on sustained postures (Straker et al., 2008)."
+      },
     ],
   },
   {
@@ -545,9 +699,18 @@ export const EXERCISES: Exercise[] = [
       "Focus on keeping both sides equally pressed against the wall",
     ],
     tips: [
-      "If you can't maintain contact, don't go as high",
-      "Pay attention to which side tends to lose contact first",
-      "This is a great warm-up before other postural exercises",
+      {
+        tip: "If you can't maintain contact, don't go as high",
+        explanation: "Loss of wall contact indicates compensation - either thoracic kyphosis increasing, lumbar lordosis increasing, or scapular winging. Stopping at the point of contact loss ensures you're working within your current mobility limits while avoiding reinforcement of dysfunctional movement patterns (Sahrmann, 2002)."
+      },
+      {
+        tip: "Pay attention to which side tends to lose contact first",
+        explanation: "Asymmetrical loss of contact reveals the tighter or weaker side. In scoliosis, one side often has different restrictions than the other. Identifying your asymmetry helps you focus additional mobility work on that side, making your corrective exercise program more specific and effective (Lehnert-Schroth, 2007)."
+      },
+      {
+        tip: "This is a great warm-up before other postural exercises",
+        explanation: "Wall angels increase blood flow to the shoulder girdle, activate scapular stabilizers, and improve thoracic mobility - preparing the body for more challenging exercises. Research shows that movement preparation exercises improve subsequent exercise performance and reduce injury risk (Bishop, 2003)."
+      },
     ],
   },
   {
@@ -570,9 +733,18 @@ export const EXERCISES: Exercise[] = [
       "Pay attention to any areas that feel stuck or don't move as well",
     ],
     tips: [
-      "Move with your breath - don't rush",
-      "Notice if one side of your spine moves differently than the other",
-      "This is about mobility, not strength - keep movements smooth and controlled",
+      {
+        tip: "Move with your breath - don't rush",
+        explanation: "Breathing coordinates with spinal movement: inhale during extension (cow), exhale during flexion (cat). This natural coordination activates the deep stabilizers and creates intra-abdominal pressure changes that assist spinal mobility. Rushed movements bypass these benefits and can cause strain (McGill, 2015)."
+      },
+      {
+        tip: "Notice if one side of your spine moves differently than the other",
+        explanation: "Asymmetrical spinal movement is common in scoliosis and reveals areas of restriction. Awareness of these differences is the first step in correction. Research on motor learning shows that conscious attention to movement asymmetries accelerates correction compared to unfocused practice (Wulf, 2013)."
+      },
+      {
+        tip: "This is about mobility, not strength - keep movements smooth and controlled",
+        explanation: "Cat-cow targets spinal segmental mobility and proprioception, not muscle strength. Quick or forceful movements bypass the slow-twitch stabilizers and can cause joint irritation. Smooth, controlled movements allow each vertebral segment to move sequentially, which is the goal of this exercise (Bogduk, 2012)."
+      },
     ],
   },
   {
@@ -595,9 +767,18 @@ export const EXERCISES: Exercise[] = [
       "If your back arches, you've gone too far - reduce range of motion",
     ],
     tips: [
-      "Quality over quantity - stop if you can't keep your back flat",
-      "Move slowly with control - this isn't a speed exercise",
-      "Exhale as you extend, inhale as you return",
+      {
+        tip: "Quality over quantity - stop if you can't keep your back flat",
+        explanation: "The flat back indicates proper core stabilization. When the back arches, the deep stabilizers (transverse abdominis, multifidus) have failed and global muscles take over. Continuing with an arched back trains the wrong pattern and can cause low back strain. Quality movement builds the correct motor program (McGill, 2015)."
+      },
+      {
+        tip: "Move slowly with control - this isn't a speed exercise",
+        explanation: "Slow movement requires continuous muscle activation and challenges stability throughout the range. Fast movements use momentum, reducing muscle work and allowing compensation. Research shows that slow tempo exercises produce superior strength gains in stabilizer muscles compared to fast movements (Westcott et al., 2001)."
+      },
+      {
+        tip: "Exhale as you extend, inhale as you return",
+        explanation: "Exhaling during the effort phase (limb extension) activates the transverse abdominis and increases intra-abdominal pressure, enhancing spinal stability. This breathing pattern coordinates the diaphragm and core muscles, which work as a functional unit for spinal protection (Hodges & Gandevia, 2000)."
+      },
     ],
   },
   {
@@ -630,9 +811,18 @@ export const EXERCISES: Exercise[] = [
       "Return to start with control and repeat on other side",
     ],
     tips: [
-      "Place a foam roller or water bottle on your low back - don't let it fall",
-      "Look down to keep your neck in neutral alignment",
-      "Focus on length - reach long through fingertips and heel",
+      {
+        tip: "Place a foam roller or water bottle on your low back - don't let it fall",
+        explanation: "External feedback objects provide immediate knowledge of results (KR) about trunk stability. If the object moves, the core isn't maintaining position. Research shows external feedback significantly accelerates motor learning compared to internal cues alone, especially for core stability exercises (Schmidt & Lee, 2011)."
+      },
+      {
+        tip: "Look down to keep your neck in neutral alignment",
+        explanation: "Looking up extends the cervical spine, which creates a chain reaction extending the thoracic and lumbar spine. Neutral neck position (looking down) keeps the entire spine in optimal alignment and ensures the exercise challenges trunk stability rather than spinal extension endurance (Sahrmann, 2002)."
+      },
+      {
+        tip: "Focus on length - reach long through fingertips and heel",
+        explanation: "Reaching creates axial elongation, which activates the deep stabilizers and reduces compressive load on the spine. This lengthening cue also prevents 'hiking' the hip or shoulder, a common compensation that would reduce the anti-rotation challenge of the exercise (Richardson et al., 2004)."
+      },
     ],
   },
   {
@@ -655,9 +845,18 @@ export const EXERCISES: Exercise[] = [
       "Notice if one direction feels tighter or harder than the other",
     ],
     tips: [
-      "This builds awareness - notice your habitual pelvic position",
-      "The movement should be in your pelvis, not your legs",
-      "Breathe normally throughout the movement",
+      {
+        tip: "This builds awareness - notice your habitual pelvic position",
+        explanation: "Many people are unaware of their pelvic position because proprioceptive feedback from this area is often poor. Research shows that postural awareness exercises significantly improve the ability to identify and correct pelvic malalignment. This body awareness is foundational for all subsequent postural corrections (O'Sullivan, 2005)."
+      },
+      {
+        tip: "The movement should be in your pelvis, not your legs",
+        explanation: "Isolating pelvic movement from leg movement trains the lumbopelvic dissociation necessary for proper movement. If the legs move instead of the pelvis, hip flexors and extensors are doing the work instead of the core muscles. This specificity ensures you develop control of the pelvis independent of the legs (Sahrmann, 2002)."
+      },
+      {
+        tip: "Breathe normally throughout the movement",
+        explanation: "Breath-holding (Valsalva maneuver) increases intra-abdominal pressure artificially and masks true core control. Normal breathing forces the deep stabilizers to maintain pelvic control without this artificial support, building real functional stability that transfers to daily activities (McGill, 2015)."
+      },
     ],
   },
 ];

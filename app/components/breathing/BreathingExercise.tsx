@@ -19,6 +19,7 @@ import {
   SchrothType,
   BreathingInstruction,
 } from "@/app/lib/breathing-instructions";
+import { TipList } from "@/app/components/TipWithExplanation";
 
 // Dynamically import 3D visualizer to avoid SSR issues
 const BreathingVisualizer3D = dynamic(() => import("./BreathingVisualizer3D"), {
@@ -379,15 +380,8 @@ export default function BreathingExercise({
 
           {/* Tips */}
           <div className="glass-subtle p-4 rounded-[16px]">
-            <h4 className="font-medium text-dark mb-2">Tips for This Exercise</h4>
-            <ul className="space-y-1.5">
-              {instruction.tips.map((tip, i) => (
-                <li key={i} className="text-sm text-muted flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  {tip}
-                </li>
-              ))}
-            </ul>
+            <h4 className="font-medium text-dark mb-3">Tips for This Exercise</h4>
+            <TipList tips={instruction.tips} />
           </div>
         </div>
       )}

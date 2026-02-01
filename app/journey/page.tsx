@@ -13,11 +13,9 @@ import {
   ChevronUp,
   Clock,
   Target,
-  AlertCircle,
   CheckCircle2,
   Play,
   RotateCcw,
-  Sparkles,
   ArrowRight,
   Info,
 } from "lucide-react";
@@ -28,7 +26,9 @@ import {
   getDailyRoutine,
   AsymmetryProfile,
   THRESHOLDS,
+  TipWithExplanation as TipType,
 } from "@/app/lib/exercises";
+import { TipList } from "@/app/components/TipWithExplanation";
 import dynamic from "next/dynamic";
 
 // Dynamically import BreathingExercise to avoid SSR issues with Three.js
@@ -195,14 +195,7 @@ function ExerciseCard({
           {exercise.tips.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-dark">Tips</p>
-              <ul className="space-y-1.5">
-                {exercise.tips.map((tip, i) => (
-                  <li key={i} className="text-sm text-muted flex items-start gap-2">
-                    <Sparkles size={14} className="text-primary mt-0.5 flex-shrink-0" />
-                    {tip}
-                  </li>
-                ))}
-              </ul>
+              <TipList tips={exercise.tips} />
             </div>
           )}
 
