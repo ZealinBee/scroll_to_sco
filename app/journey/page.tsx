@@ -29,6 +29,13 @@ import {
   AsymmetryProfile,
   THRESHOLDS,
 } from "@/app/lib/exercises";
+import dynamic from "next/dynamic";
+
+// Dynamically import BreathingExercise to avoid SSR issues with Three.js
+const BreathingExercise = dynamic(
+  () => import("@/app/components/breathing/BreathingExercise"),
+  { ssr: false }
+);
 
 interface ProgressPhoto {
   id: string;
@@ -271,6 +278,15 @@ function FindingsSummary({ profile }: { profile: AsymmetryProfile }) {
   );
 }
 
+// Interface for X-ray analysis data
+interface XrayAnalysisData {
+  curve_location: string;
+  curve_direction: string;
+  schroth_type: "3C" | "3CP" | "4C" | "4CP";
+  severity: string;
+  primary_cobb_angle: number;
+}
+
 export default function JourneyPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"exercises" | "breathing" | "progress" | "chat">("exercises");
@@ -280,6 +296,8 @@ export default function JourneyPage() {
   const [recommendedExercises, setRecommendedExercises] = useState<Exercise[]>([]);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [showRoutine, setShowRoutine] = useState(true);
+  const [analysisType, setAnalysisType] = useState<"xray" | "photo" | null>(null);
+  const [xrayData, setXrayData] = useState<XrayAnalysisData | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -289,7 +307,31 @@ export default function JourneyPage() {
       setProgressPhotos(JSON.parse(storedPhotos));
     }
 
-    // Load analysis data
+    // Check analysis type from sessionStorage
+    const storedType = sessionStorage.getItem("analysisType");
+    if (storedType === "xray" || storedType === "photo") {
+      setAnalysisType(storedType);
+    }
+
+    // Load X-ray data if available
+    const storedXray = sessionStorage.getItem("xrayAnalysis");
+    if (storedXray) {
+      try {
+        const xray = JSON.parse(storedXray);
+        setXrayData({
+          curve_location: xray.curve_location,
+          curve_direction: xray.curve_direction,
+          schroth_type: xray.schroth_type,
+          severity: xray.severity,
+          primary_cobb_angle: xray.primary_cobb_angle,
+        });
+        setAnalysisType("xray");
+      } catch (e) {
+        console.error("Failed to parse X-ray data:", e);
+      }
+    }
+
+    // Load photo analysis data
     const storedAnalysis = localStorage.getItem("analysisData");
     if (storedAnalysis) {
       const data: AnalysisData = JSON.parse(storedAnalysis);
@@ -301,6 +343,11 @@ export default function JourneyPage() {
 
       const exercises = getRecommendedExercises(profile);
       setRecommendedExercises(exercises);
+
+      // Set analysis type to photo if not already xray
+      if (!storedXray) {
+        setAnalysisType("photo");
+      }
     }
   }, []);
 
@@ -366,7 +413,7 @@ export default function JourneyPage() {
     <div className="min-h-screen px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <header className="flex items-center justify-between">
+        <header>
           <button
             onClick={() => router.push("/")}
             className="btn btn-ghost"
@@ -374,33 +421,7 @@ export default function JourneyPage() {
             <RotateCcw size={18} />
             New Analysis
           </button>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-            <Calendar size={14} />
-            Your Journey
-          </div>
         </header>
-
-        {/* Title */}
-        <div className="glass p-6 text-center space-y-3">
-          <div className="w-16 h-16 mx-auto rounded-[20px] bg-primary/10 flex items-center justify-center">
-            <Dumbbell size={32} className="text-primary" />
-          </div>
-          <h1 className="text-2xl font-semibold text-dark">Your Posture Journey</h1>
-          <p className="text-muted text-sm leading-relaxed max-w-md mx-auto">
-            {analysisData
-              ? "Personalized exercises based on your posture analysis."
-              : "Track your progress, practice exercises, and work towards a healthier spine."}
-          </p>
-          {analysisData && (
-            <p className="text-xs text-muted">
-              Last analyzed: {new Date(analysisData.analyzedAt).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric"
-              })}
-            </p>
-          )}
-        </div>
 
         {/* Tab Navigation */}
         <div className="glass p-1.5 flex gap-1">
@@ -594,53 +615,14 @@ export default function JourneyPage() {
           )}
 
           {activeTab === "breathing" && (
-            <div className="glass p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center">
-                  <Wind size={20} className="text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-dark">Breathing Exercises</h2>
-                  <p className="text-xs text-muted">Rotational breathing techniques for scoliosis</p>
-                </div>
-              </div>
-
-              {/* Schroth Breathing if there's rotation */}
-              {asymmetryProfile && (asymmetryProfile.shoulderRotation >= THRESHOLDS.rotation.mild ||
-                                    asymmetryProfile.scapulaProminence >= THRESHOLDS.scapula.mild) ? (
-                <div className="space-y-4">
-                  <div className="glass-subtle p-4 border-l-4 border-primary">
-                    <p className="text-sm text-dark leading-relaxed">
-                      Based on your analysis showing rotational asymmetry, Schroth rotational breathing
-                      is particularly important for you. This technique helps de-rotate the spine and
-                      expand collapsed areas of the ribcage.
-                    </p>
-                  </div>
-
-                  {recommendedExercises
-                    .filter(e => e.id === "rotational-breathing")
-                    .map(exercise => (
-                      <ExerciseCard
-                        key={exercise.id}
-                        exercise={exercise}
-                        isExpanded={expandedExercise === exercise.id}
-                        onToggle={() => setExpandedExercise(expandedExercise === exercise.id ? null : exercise.id)}
-                        relevantFor={getRelevanceReasons(exercise)}
-                      />
-                    ))}
-                </div>
-              ) : (
-                <div className="glass-subtle p-8 text-center space-y-3">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
-                    <Wind size={24} className="text-muted" />
-                  </div>
-                  <p className="text-muted text-sm">Breathing exercises coming soon</p>
-                  <p className="text-xs text-muted">
-                    This section will guide you through Schroth rotational breathing techniques.
-                  </p>
-                </div>
-              )}
-            </div>
+            <BreathingExercise
+              analysisType={analysisType}
+              xrayData={xrayData || undefined}
+              photoData={analysisData ? {
+                metrics: analysisData.metrics,
+                riskLevel: analysisData.riskLevel,
+              } : undefined}
+            />
           )}
 
           {activeTab === "progress" && (
