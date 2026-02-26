@@ -23,11 +23,27 @@ Key guidelines:
 - Always recommend consulting a healthcare professional for medical decisions
 - Be knowledgeable about Schroth method exercises and breathing techniques
 - Keep responses concise and helpful
-- Use markdown formatting when appropriate (lists, bold, headers)`;
+- Use markdown formatting when appropriate (lists, bold, headers)
+- When the user asks about "my results" or "my diagnosis", refer to their analysis context below`;
 
     // Add analysis context if provided
-    if (context) {
-      systemPrompt += `\n\nUser's current analysis context:\n${JSON.stringify(context, null, 2)}`;
+    if (context && Object.keys(context).length > 0) {
+      systemPrompt += `\n\n## User's Diagnosis Context\n`;
+
+      if (context.type === 'xray') {
+        systemPrompt += `Analysis type: X-ray Analysis\n`;
+        if (context.cobbAngles) systemPrompt += `Cobb Angles: ${JSON.stringify(context.cobbAngles)}\n`;
+        if (context.severity) systemPrompt += `Severity: ${context.severity}\n`;
+        if (context.schrothType) systemPrompt += `Schroth Classification: ${context.schrothType}\n`;
+        if (context.curveLocation) systemPrompt += `Curve Location: ${context.curveLocation}\n`;
+        if (context.curveDirection) systemPrompt += `Curve Direction: ${context.curveDirection}\n`;
+        if (context.vertebraeCount) systemPrompt += `Vertebrae Detected: ${context.vertebraeCount}\n`;
+      } else if (context.type === 'photo') {
+        systemPrompt += `Analysis type: Photo Screening\n`;
+        if (context.riskLevel) systemPrompt += `Risk Level: ${context.riskLevel}\n`;
+        if (context.asymmetryMetrics) systemPrompt += `Asymmetry Metrics: ${JSON.stringify(context.asymmetryMetrics)}\n`;
+        if (context.recommendations) systemPrompt += `Recommendations: ${JSON.stringify(context.recommendations)}\n`;
+      }
     }
 
     const response = await fetch(ANTHROPIC_API_URL, {

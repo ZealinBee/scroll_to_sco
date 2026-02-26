@@ -15,14 +15,46 @@ interface ChatProps {
   context?: Record<string, unknown>;
 }
 
-export default function Chat({ context }: ChatProps) {
+export default function Chat({ context: propContext }: ChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [diagnosisContext, setDiagnosisContext] = useState<Record<string, unknown> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load diagnosis from sessionStorage
+  useEffect(() => {
+    const stored = sessionStorage.getItem('analysisResults');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Extract relevant diagnosis info (exclude large base64 images)
+        const context: Record<string, unknown> = {
+          type: parsed.type,
+        };
+
+        if (parsed.type === 'xray') {
+          context.cobbAngles = parsed.cobb_angles;
+          context.severity = parsed.severity;
+          context.schrothType = parsed.schroth_type;
+          context.curveLocation = parsed.curve_location;
+          context.curveDirection = parsed.curve_direction;
+          context.vertebraeCount = parsed.vertebrae_count;
+        } else if (parsed.type === 'photo') {
+          context.riskLevel = parsed.risk_level;
+          context.asymmetryMetrics = parsed.asymmetry_metrics;
+          context.recommendations = parsed.recommendations;
+        }
+
+        setDiagnosisContext(context);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,7 +104,7 @@ export default function Chat({ context }: ChatProps) {
             role: m.role,
             content: m.content,
           })),
-          context,
+          context: { ...diagnosisContext, ...propContext },
         }),
       });
 
