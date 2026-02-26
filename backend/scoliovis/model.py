@@ -78,16 +78,24 @@ class SpineModel:
             image: PIL Image in RGB format
 
         Returns:
-            Dictionary with boxes, scores, keypoints
+            Dictionary with boxes, scores, keypoints (scaled to original image dimensions)
         """
         if not self._loaded:
             raise RuntimeError("Model not loaded. Call load() first.")
 
+        # Store original dimensions
+        orig_width, orig_height = image.size
+
         # Resize if too large
-        image = resize_if_needed(image)
+        resized_image = resize_if_needed(image)
+        resized_width, resized_height = resized_image.size
+
+        # Calculate scale factors to map back to original coordinates
+        scale_x = orig_width / resized_width
+        scale_y = orig_height / resized_height
 
         # Preprocess
-        tensor = preprocess_for_model(image)
+        tensor = preprocess_for_model(resized_image)
         tensor = tensor.to(self._device)
 
         # Run inference
@@ -96,10 +104,27 @@ class SpineModel:
         # Extract first (and only) image results
         result = outputs[0]
 
+        boxes = result["boxes"]
+        keypoints = result["keypoints"]
+
+        # Scale coordinates back to original image dimensions if resized
+        if scale_x != 1.0 or scale_y != 1.0:
+            # Scale boxes: [x1, y1, x2, y2]
+            boxes = boxes.clone()
+            boxes[:, 0] *= scale_x  # x1
+            boxes[:, 1] *= scale_y  # y1
+            boxes[:, 2] *= scale_x  # x2
+            boxes[:, 3] *= scale_y  # y2
+
+            # Scale keypoints: shape is [N, num_keypoints, 3] where 3 is [x, y, visibility]
+            keypoints = keypoints.clone()
+            keypoints[:, :, 0] *= scale_x  # x coordinates
+            keypoints[:, :, 1] *= scale_y  # y coordinates
+
         return {
-            "boxes": result["boxes"],
+            "boxes": boxes,
             "scores": result["scores"],
-            "keypoints": result["keypoints"]
+            "keypoints": keypoints
         }
 
 

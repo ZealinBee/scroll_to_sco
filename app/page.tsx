@@ -598,11 +598,7 @@ export default function Home() {
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
         <main className="w-full max-w-lg space-y-8">
           <OrientationConfirmation
-            previewImage={
-              previewWithMarker
-                ? `data:image/jpeg;base64,${previewWithMarker}`
-                : preview
-            }
+            previewImage={previewWithMarker || preview || ""}
             detectionResult={detectionResult}
             isFlipped={isFlipped}
             onFlip={handleFlip}

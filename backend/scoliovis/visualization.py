@@ -76,19 +76,29 @@ def draw_skeleton_overlay(
     return result
 
 
+def clamp_to_image(x: float, y: float, width: int, height: int) -> tuple:
+    """Clamp coordinates to image bounds."""
+    return (
+        max(0, min(int(x), width - 1)),
+        max(0, min(int(y), height - 1))
+    )
+
+
 def draw_vertebra_shape(img: np.ndarray, vertebra: Vertebra, scale: float):
     """Draw a semi-transparent quadrilateral for a vertebra."""
     kp = vertebra.keypoints
+    h, w = img.shape[:2]
 
     if len(kp) < 4:
         return
 
     # Define polygon points (TL, TR, BR, BL order for proper quadrilateral)
+    # Clamp to image bounds to prevent drawing outside
     pts = np.array([
-        [int(kp[0].x), int(kp[0].y)],  # top-left
-        [int(kp[1].x), int(kp[1].y)],  # top-right
-        [int(kp[3].x), int(kp[3].y)],  # bottom-right
-        [int(kp[2].x), int(kp[2].y)],  # bottom-left
+        clamp_to_image(kp[0].x, kp[0].y, w, h),  # top-left
+        clamp_to_image(kp[1].x, kp[1].y, w, h),  # top-right
+        clamp_to_image(kp[3].x, kp[3].y, w, h),  # bottom-right
+        clamp_to_image(kp[2].x, kp[2].y, w, h),  # bottom-left
     ], dtype=np.int32)
 
     # Draw semi-transparent fill
@@ -103,8 +113,10 @@ def draw_vertebra_shape(img: np.ndarray, vertebra: Vertebra, scale: float):
 
 def draw_keypoints(img: np.ndarray, vertebra: Vertebra, scale: float):
     """Draw keypoint markers for a vertebra."""
+    h, w = img.shape[:2]
     for kp in vertebra.keypoints:
-        center = (int(kp.x), int(kp.y))
+        # Clamp to image bounds
+        center = clamp_to_image(kp.x, kp.y, w, h)
         radius = max(3, int(4 * scale))
 
         # White filled circle
@@ -119,6 +131,8 @@ def draw_spine_centerline(img: np.ndarray, vertebrae: List[Vertebra], scale: flo
     if len(vertebrae) < 2:
         return
 
+    h, w = img.shape[:2]
+
     # Calculate centers
     centers = []
     for v in vertebrae:
@@ -126,7 +140,7 @@ def draw_spine_centerline(img: np.ndarray, vertebrae: List[Vertebra], scale: flo
         if len(kp) >= 4:
             cx = (kp[0].x + kp[1].x + kp[2].x + kp[3].x) / 4
             cy = (kp[0].y + kp[1].y + kp[2].y + kp[3].y) / 4
-            centers.append((int(cx), int(cy)))
+            centers.append(clamp_to_image(cx, cy, w, h))
 
     if len(centers) < 2:
         return
@@ -176,7 +190,10 @@ def draw_cobb_angle_lines(
             ext_x2 = int(x2 + dx * extension)
             ext_y2 = int(y2 + dy * extension)
 
-            cv2.line(img, (ext_x1, ext_y1), (ext_x2, ext_y2),
+            # Clamp extended line endpoints to image bounds
+            pt1 = clamp_to_image(ext_x1, ext_y1, w, h)
+            pt2 = clamp_to_image(ext_x2, ext_y2, w, h)
+            cv2.line(img, pt1, pt2,
                      COLORS["cobb_line"], thickness=max(2, int(2.5 * scale)), lineType=cv2.LINE_AA)
 
     # Lower endplate line
@@ -195,7 +212,10 @@ def draw_cobb_angle_lines(
             ext_x2 = int(x2 + dx * extension)
             ext_y2 = int(y2 + dy * extension)
 
-            cv2.line(img, (ext_x1, ext_y1), (ext_x2, ext_y2),
+            # Clamp extended line endpoints to image bounds
+            pt1 = clamp_to_image(ext_x1, ext_y1, w, h)
+            pt2 = clamp_to_image(ext_x2, ext_y2, w, h)
+            cv2.line(img, pt1, pt2,
                      COLORS["cobb_line"], thickness=max(2, int(2.5 * scale)), lineType=cv2.LINE_AA)
 
     # Draw angle annotation
@@ -205,6 +225,10 @@ def draw_cobb_angle_lines(
     mid_x = int(max(upper_center_x, lower_center_x) + 30 * scale)
     mid_y = int((upper_kp[0].y + lower_kp[2].y) / 2)
 
+    # Clamp annotation position to image bounds
+    mid_x = max(0, min(mid_x, w - 1))
+    mid_y = max(0, min(mid_y, h - 1))
+
     # Draw angle text with background
     text = f"{cobb.angle:.1f}"
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -213,15 +237,15 @@ def draw_cobb_angle_lines(
 
     (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
 
-    # Background rectangle
+    # Background rectangle - clamp to image bounds
     padding = int(5 * scale)
-    cv2.rectangle(img,
-                  (mid_x - padding, mid_y - text_h - padding),
-                  (mid_x + text_w + padding, mid_y + padding),
-                  COLORS["label_bg"], -1)
-    cv2.rectangle(img,
-                  (mid_x - padding, mid_y - text_h - padding),
-                  (mid_x + text_w + padding, mid_y + padding),
+    rect_x1 = max(0, mid_x - padding)
+    rect_y1 = max(0, mid_y - text_h - padding)
+    rect_x2 = min(w - 1, mid_x + text_w + padding)
+    rect_y2 = min(h - 1, mid_y + padding)
+
+    cv2.rectangle(img, (rect_x1, rect_y1), (rect_x2, rect_y2), COLORS["label_bg"], -1)
+    cv2.rectangle(img, (rect_x1, rect_y1), (rect_x2, rect_y2),
                   COLORS["cobb_line"], max(1, int(1 * scale)))
 
     # Text
@@ -232,13 +256,16 @@ def draw_cobb_angle_lines(
 def draw_vertebra_label(img: np.ndarray, vertebra: Vertebra, scale: float):
     """Draw vertebra label (e.g., T1, L5) to the right of the vertebra."""
     kp = vertebra.keypoints
+    h, w = img.shape[:2]
 
     if len(kp) < 4:
         return
 
-    # Position label to the right
+    # Position label to the right, clamped to image bounds
     label_x = int(max(kp[1].x, kp[3].x) + 10 * scale)
     label_y = int((kp[0].y + kp[2].y) / 2)
+    label_x = max(0, min(label_x, w - 1))
+    label_y = max(0, min(label_y, h - 1))
 
     # Draw label
     font = cv2.FONT_HERSHEY_SIMPLEX

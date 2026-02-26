@@ -1087,14 +1087,12 @@ function PredictionDisplay({
   prediction,
   profile,
   cobbAngle,
-  onEditProfile,
-  onContinue
+  onEditProfile
 }: {
   prediction: Prediction;
   profile: UserProfile;
   cobbAngle: number;
   onEditProfile: () => void;
-  onContinue: () => void;
 }) {
   const potentialNewAngle = {
     min: Math.max(0, cobbAngle - prediction.estimatedImprovementDegrees.max),
@@ -1233,16 +1231,11 @@ function PredictionDisplay({
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button onClick={onEditProfile} className="btn btn-secondary flex-1">
-          <Settings size={18} />
-          Edit Profile
-        </button>
-        <button onClick={onContinue} className="btn btn-primary flex-1">
-          View Exercises
-        </button>
-      </div>
+      {/* Action Button */}
+      <button onClick={onEditProfile} className="btn btn-secondary w-full">
+        <Settings size={18} />
+        Edit Profile
+      </button>
     </div>
   );
 }
@@ -1881,8 +1874,8 @@ function PhotoResultsDisplay({ result: initialResult, onNewAnalysis }: { result:
                 <span className={`inline-block px-2 py-1 rounded-full text-xs ${badge.color}`}>
                   {badge.text}
                 </span>
-                <p className="text-xs text-muted">
-                  Reference: Lateral shift as % of shoulder width. &gt;5% indicates trunk decompensation.
+                <p className="text-xs text-muted leading-relaxed">
+                  <span className="font-medium text-dark/70">What is trunk shift?</span> Trunk shift measures how far your upper body (torso) leans to one side relative to your pelvis. In a balanced spine, the head should be centered directly above the pelvis. When scoliosis causes the spine to curve, the body may compensate by shifting the trunk sideways, causing "decompensation." A shift greater than 5% of shoulder width may indicate the spine is not balanced.
                 </p>
               </div>
             );
@@ -2305,7 +2298,6 @@ export default function ResultsPage() {
             profile={profile}
             cobbAngle={xrayResult.primary_cobb_angle}
             onEditProfile={handleEditProfile}
-            onContinue={handleContinueToMain}
           />
         )}
 
