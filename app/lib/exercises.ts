@@ -90,6 +90,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2-3 minutes",
     repetitions: "10 shrugs, hold release 30 seconds",
     frequency: "2-3x daily",
+    videoUrl: "https://www.youtube.com/watch?v=ja_P3YhmAlE",
     instructions: [
       "Stand or sit with good posture, arms relaxed at sides",
       "Shrug ONLY the elevated (higher) shoulder up toward your ear",
@@ -125,6 +126,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2 minutes",
     repetitions: "Hold 30-45 seconds, 3 times",
     frequency: "2-3x daily",
+    videoUrl: "https://www.youtube.com/watch?v=cu1d-DH4s2U",
     instructions: [
       "Sit tall on a chair, holding the seat with your hand on the elevated shoulder side",
       "Tilt your head away from the elevated shoulder (ear toward opposite shoulder)",
@@ -160,6 +162,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "15 reps, 3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=maKLqBSn_Vo",
     instructions: [
       "Stand with your back against a wall, arms at your sides",
       "Slide the elevated shoulder down the wall as far as possible",
@@ -199,6 +202,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "12 reps, 3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=HW_Iv3GKFEU",
     instructions: [
       "Stand on a step or thick book with your higher hip side leg on the step",
       "Let the other leg hang freely off the edge",
@@ -234,6 +238,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "Hold 45-60 seconds, 3 times",
     frequency: "2x daily",
+    videoUrl: "https://www.youtube.com/watch?v=bNRn-zkSETo",
     instructions: [
       "Lie on your side with the higher hip facing up",
       "Bend your bottom leg for stability",
@@ -269,6 +274,7 @@ export const EXERCISES: Exercise[] = [
     duration: "4-5 minutes",
     repetitions: "12 reps, 3 sets",
     frequency: "3-4x per week",
+    videoUrl: "https://www.youtube.com/watch?v=AVAXhy6pl7o",
     instructions: [
       "Lie on your back with knees bent, feet flat on the floor",
       "Extend the leg on your higher hip side straight up toward the ceiling",
@@ -308,6 +314,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "10-15 holds of 10 seconds",
     frequency: "Multiple times daily",
+    videoUrl: "https://www.youtube.com/watch?v=kBSUokzjXDY",
     instructions: [
       "Stand in front of a mirror to monitor your alignment",
       "Identify which direction your trunk shifts (the opposite of center)",
@@ -343,6 +350,7 @@ export const EXERCISES: Exercise[] = [
     duration: "4-5 minutes",
     repetitions: "8-12 reps, 3 sets each side",
     frequency: "3-4x per week",
+    videoUrl: "https://www.youtube.com/watch?v=ZZkgopVBPMg",
     instructions: [
       "Lie on the side OPPOSITE to where your trunk shifts",
       "Prop yourself up on your forearm with elbow under shoulder",
@@ -378,6 +386,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2-3 minutes",
     repetitions: "Hold 30-45 seconds, 4 times",
     frequency: "2-3x daily",
+    videoUrl: "https://www.youtube.com/watch?v=5BUbH62XiDc",
     instructions: [
       "Sit on a chair with feet flat on the floor",
       "Place the hand on the side your trunk shifts toward on the chair seat",
@@ -421,6 +430,7 @@ export const EXERCISES: Exercise[] = [
     duration: "5-10 minutes",
     repetitions: "10-15 breath cycles",
     frequency: "Daily, multiple sessions ideal",
+    videoUrl: "https://www.youtube.com/watch?v=YMdXXryKlko",
     instructions: [
       "Lie on your back with knees bent, or sit in a supported position",
       "Identify your convex side (the side that rotates backward/is more prominent)",
@@ -457,6 +467,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "Hold 30-45 seconds, 3-4 times",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=dMe2wEY4Atg",
     instructions: [
       "Lie face down with arms extended out to the sides in a T position, palms down",
       "To stretch your RIGHT side: bend your RIGHT knee and bring it up toward your hip",
@@ -497,6 +508,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "10 reps each direction, 2 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=dN_0Z-PPWBY",
     instructions: [
       "Start on hands and knees with hands under shoulders, knees under hips",
       "Place one hand behind your head with elbow pointing out",
@@ -536,6 +548,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "12-15 reps, 3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=gYgKwIuwr3A",
     instructions: [
       "Stand with your back against a wall, feet 6 inches away",
       "Press your entire spine and head against the wall",
@@ -571,6 +584,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "15-20 reps, 3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=bvuy6vBfgkE",
     instructions: [
       "Lie on your back with knees bent",
       "Hold a light weight or water bottle in the hand on the prominent scapula side",
@@ -607,6 +621,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "10-12 reps, 3 sets",
     frequency: "3-4x per week",
+    videoUrl: "https://www.youtube.com/watch?v=f-a3F4sciOE",
     instructions: [
       "Lie face down on a bench or mat with arms hanging down",
       "Turn thumbs to point up toward the ceiling",
@@ -646,6 +661,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2-3 minutes",
     repetitions: "10-15 reps, hold 5 seconds each",
     frequency: "Multiple times daily",
+    videoUrl: "https://www.youtube.com/watch?v=wQylqaCl8Zo",
     instructions: [
       "Sit or stand with good posture, looking straight ahead",
       "Without tilting your head up or down, glide your chin straight back",
@@ -689,6 +705,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "10-15 reps, 2 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=M_ooIhKYs7c",
     instructions: [
       "Stand with your back against a wall, feet 6 inches away",
       "Press your low back, upper back, and head against the wall",
@@ -724,6 +741,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2-3 minutes",
     repetitions: "10-15 cycles",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=kqnua4rHVVA",
     instructions: [
       "Start on hands and knees, hands under shoulders, knees under hips",
       "Cow: Inhale, drop your belly, lift your chest and tailbone, look up",
@@ -758,6 +776,7 @@ export const EXERCISES: Exercise[] = [
     duration: "4-5 minutes",
     repetitions: "10 reps each side, 2-3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=I5xbsA71v1A",
     instructions: [
       "Lie on your back with arms pointing to ceiling and knees bent at 90 degrees",
       "Press your low back firmly into the floor - this is your anchor",
@@ -802,6 +821,7 @@ export const EXERCISES: Exercise[] = [
     duration: "4-5 minutes",
     repetitions: "10 reps each side, 2-3 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=wiFNA3sqjCA",
     instructions: [
       "Start on hands and knees with spine in neutral position",
       "Engage your core by gently drawing belly button toward spine",
@@ -836,6 +856,7 @@ export const EXERCISES: Exercise[] = [
     duration: "2-3 minutes",
     repetitions: "15-20 reps, 2 sets",
     frequency: "Daily",
+    videoUrl: "https://www.youtube.com/watch?v=ZIQjHtghzqw",
     instructions: [
       "Lie on your back with knees bent, feet flat on the floor",
       "Find your neutral spine - slight natural curve in low back",

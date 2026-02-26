@@ -19,6 +19,7 @@ import {
   ArrowRight,
   Info,
   Settings,
+  Youtube,
 } from "lucide-react";
 import {
   GamificationState,
@@ -44,6 +45,7 @@ import {
   TipWithExplanation as TipType,
 } from "@/app/lib/exercises";
 import { TipList } from "@/app/components/TipWithExplanation";
+import InlineChat from "@/app/components/InlineChat";
 import dynamic from "next/dynamic";
 
 // Dynamically import BreathingExercise to avoid SSR issues with Three.js
@@ -76,6 +78,41 @@ interface AnalysisData {
   riskFactors: string[];
   recommendations: string[];
   analyzedAt: string;
+}
+
+// Helper to extract YouTube video ID from URL
+function getYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+// YouTube Embed Component
+function YouTubeEmbed({ videoUrl }: { videoUrl: string }) {
+  const videoId = getYouTubeVideoId(videoUrl);
+
+  if (!videoId) return null;
+
+  return (
+    <div className="relative w-full rounded-[12px] overflow-hidden bg-dark/5">
+      <div className="relative pt-[56.25%]">
+        <iframe
+          className="absolute inset-0 w-full h-full"
+          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+          title="Exercise demonstration"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
 }
 
 // Helper to personalize exercise text based on user's asymmetry profile
@@ -168,6 +205,17 @@ function ExerciseCard({
 
       {isExpanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-dark/5 pt-4">
+          {/* Video Demo */}
+          {exercise.videoUrl && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-dark flex items-center gap-1.5">
+                <Youtube size={14} className="text-red-500" />
+                Video Demonstration
+              </p>
+              <YouTubeEmbed videoUrl={exercise.videoUrl} />
+            </div>
+          )}
+
           {/* Description */}
           <p className="text-sm text-muted leading-relaxed">
             {personalizeText(exercise.description, profile || null)}
@@ -762,9 +810,10 @@ export default function JourneyPage() {
                 <div>
                   <p className="text-xs text-muted leading-relaxed">
                     These exercises are based on the Schroth Method and postural correction research.
-                    Consistency is key - studies show that 90-180 minutes per week of scoliosis-specific
-                    exercises can lead to measurable improvements. Always consult with a healthcare provider
-                    before starting a new exercise program.
+                    Consistency is key - <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10170402/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">clinical studies</a> show
+                    that regular scoliosis-specific exercises (typically 3 sessions of 60-90 minutes per week)
+                    can lead to measurable improvements in Cobb angle and quality of life. Always consult
+                    with a healthcare provider before starting a new exercise program.
                   </p>
                 </div>
               </div>
@@ -844,30 +893,9 @@ export default function JourneyPage() {
                 </div>
               </div>
 
-              <div className="glass-subtle p-8 text-center space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-full bg-dark/5 flex items-center justify-center">
-                  <MessageCircle size={24} className="text-muted" />
-                </div>
-                <p className="text-muted text-sm">AI chat coming soon</p>
-                <p className="text-xs text-muted">
-                  Ask questions about exercises, techniques, and scoliosis management.
-                </p>
-              </div>
+              <InlineChat />
             </div>
           )}
-        </div>
-
-        {/* Motivation Card */}
-        <div className="glass-subtle p-4 flex gap-3">
-          <div className="w-10 h-10 rounded-[12px] bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Calendar size={18} className="text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-dark">Consistency is key</p>
-            <p className="text-xs text-muted leading-relaxed">
-              Research shows that regular practice of scoliosis-specific exercises can lead to measurable improvements in posture over time. Aim for daily practice of your personalized routine.
-            </p>
-          </div>
         </div>
       </div>
     </div>
