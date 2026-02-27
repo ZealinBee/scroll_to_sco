@@ -16,7 +16,7 @@ def filter_detections(
     outputs: Dict[str, torch.Tensor],
     confidence_threshold: float = 0.5,
     nms_threshold: float = 0.3,
-    max_detections: int = 18
+    max_detections: int = 17  # Match number of vertebrae labels (T1-T12, L1-L5)
 ) -> Dict[str, Any]:
     """
     Filter and process raw model outputs.
@@ -26,6 +26,7 @@ def filter_detections(
     2. Apply Non-Maximum Suppression
     3. Keep top-k detections
     4. Sort by y-coordinate (top to bottom)
+    5. Filter spatial outliers (detections far from the spine)
     """
     boxes = outputs["boxes"]
     scores = outputs["scores"]
@@ -46,25 +47,119 @@ def filter_detections(
     scores = scores[keep_indices]
     keypoints = keypoints[keep_indices]
 
-    # 3. Keep top-k
-    if len(boxes) > max_detections:
-        top_k_indices = torch.topk(scores, max_detections).indices
-        boxes = boxes[top_k_indices]
-        scores = scores[top_k_indices]
-        keypoints = keypoints[top_k_indices]
-
-    # 4. Sort by y-coordinate (top of bounding box)
+    # 3. Sort by y-coordinate first (top of bounding box)
     y_positions = boxes[:, 1]  # y1 (top)
     sort_indices = torch.argsort(y_positions)
     boxes = boxes[sort_indices]
     scores = scores[sort_indices]
     keypoints = keypoints[sort_indices]
 
+    # 4. Filter spatial outliers - remove detections far from the spine centerline
+    if len(boxes) >= 3:
+        boxes, scores, keypoints = filter_spatial_outliers(boxes, scores, keypoints)
+
+    # 5. Keep top-k (by score) if still too many
+    if len(boxes) > max_detections:
+        top_k_indices = torch.topk(scores, max_detections).indices
+        # Re-sort these by y-position
+        selected_boxes = boxes[top_k_indices]
+        selected_scores = scores[top_k_indices]
+        selected_keypoints = keypoints[top_k_indices]
+
+        y_positions = selected_boxes[:, 1]
+        sort_indices = torch.argsort(y_positions)
+        boxes = selected_boxes[sort_indices]
+        scores = selected_scores[sort_indices]
+        keypoints = selected_keypoints[sort_indices]
+
     return {
         "boxes": boxes.cpu().numpy().tolist(),
         "scores": scores.cpu().numpy().tolist(),
         "keypoints": keypoints.cpu().numpy().tolist()
     }
+
+
+def filter_spatial_outliers(
+    boxes: torch.Tensor,
+    scores: torch.Tensor,
+    keypoints: torch.Tensor,
+    x_deviation_threshold: float = 2.5,  # Number of MADs from median
+    y_gap_threshold: float = 2.0  # Max gap multiplier relative to median spacing
+) -> tuple:
+    """
+    Filter out detections that are spatially inconsistent with the spine.
+
+    This removes false positives like:
+    - Detections far horizontally from the spine centerline (pelvis, ribs)
+    - Detections with abnormally large gaps from neighbors (artifacts)
+
+    Uses Median Absolute Deviation (MAD) for robust outlier detection.
+    """
+    if len(boxes) < 3:
+        return boxes, scores, keypoints
+
+    # Calculate center x-position for each detection
+    center_x = (boxes[:, 0] + boxes[:, 2]) / 2  # (x1 + x2) / 2
+    center_y = (boxes[:, 1] + boxes[:, 3]) / 2  # (y1 + y2) / 2
+
+    # Calculate median x-position (spine should be roughly vertical)
+    median_x = torch.median(center_x)
+
+    # Calculate Median Absolute Deviation (MAD) for x-position
+    x_deviations = torch.abs(center_x - median_x)
+    mad_x = torch.median(x_deviations)
+
+    # Avoid division by zero - use a minimum MAD based on typical vertebra width
+    min_mad = (boxes[:, 2] - boxes[:, 0]).median() * 0.3  # 30% of median width
+    mad_x = torch.max(mad_x, min_mad)
+
+    # Filter by x-deviation: keep detections within threshold MADs of median
+    x_inlier_mask = x_deviations <= (x_deviation_threshold * mad_x)
+
+    # Also check for abnormal vertical gaps (detections too far from neighbors)
+    y_gap_mask = torch.ones(len(boxes), dtype=torch.bool, device=boxes.device)
+
+    if len(center_y) >= 3:
+        # Calculate gaps between consecutive vertebrae
+        y_sorted_indices = torch.argsort(center_y)
+        sorted_y = center_y[y_sorted_indices]
+        gaps = sorted_y[1:] - sorted_y[:-1]
+
+        if len(gaps) > 0:
+            median_gap = torch.median(gaps)
+            # Mark detections with abnormally large gaps before or after them
+            for i in range(len(y_sorted_indices)):
+                original_idx = y_sorted_indices[i]
+                # Check gap to previous (if exists)
+                if i > 0:
+                    gap_before = gaps[i - 1]
+                    if gap_before > y_gap_threshold * median_gap:
+                        # This vertebra might be an outlier if it's the last one
+                        # and has a huge gap from the rest
+                        if i == len(y_sorted_indices) - 1:
+                            y_gap_mask[original_idx] = False
+                # Check gap to next (if exists)
+                if i < len(gaps):
+                    gap_after = gaps[i]
+                    if gap_after > y_gap_threshold * median_gap:
+                        # If first vertebra has huge gap, might be artifact at top
+                        if i == 0:
+                            y_gap_mask[original_idx] = False
+
+    # Combine masks
+    keep_mask = x_inlier_mask & y_gap_mask
+
+    # Always keep at least 3 detections (don't over-filter)
+    if keep_mask.sum() < 3:
+        # Fall back to keeping based on x-deviation only, sorted by score
+        keep_mask = x_inlier_mask
+        if keep_mask.sum() < 3:
+            # Keep the 3 highest scoring ones that are closest to median x
+            _, closest_indices = torch.topk(-x_deviations, min(3, len(boxes)))
+            keep_mask = torch.zeros(len(boxes), dtype=torch.bool, device=boxes.device)
+            keep_mask[closest_indices] = True
+
+    return boxes[keep_mask], scores[keep_mask], keypoints[keep_mask]
 
 
 def extract_vertebrae(filtered_outputs: Dict[str, Any]) -> List[Vertebra]:
