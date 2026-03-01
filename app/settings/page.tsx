@@ -22,9 +22,8 @@ import {
   canUseStreakFreeze,
   initializeGamificationState,
 } from "@/app/lib/gamification";
-import { createClient } from "@/app/lib/supabase/client";
 import { signOut } from "@/app/auth/actions";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useAuth } from "@/app/components/AuthSyncProvider";
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -37,7 +36,7 @@ export default function SettingsPage() {
   const [state, setState] = useState<GamificationState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationSupported, setNotificationSupported] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
 
   // Load state on mount
   useEffect(() => {
@@ -56,22 +55,6 @@ export default function SettingsPage() {
 
     setNotificationSupported(isNotificationSupported());
     setIsLoading(false);
-
-    // Check if user is logged in and listen for auth changes
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   // Save state when it changes
@@ -119,7 +102,7 @@ export default function SettingsPage() {
     setState(updatedState);
   };
 
-  if (isLoading || !state) {
+  if (isLoading || authLoading || !state) {
     return (
       <div className="min-h-screen bg-light flex items-center justify-center">
         <div className="animate-pulse text-muted">Loading...</div>
