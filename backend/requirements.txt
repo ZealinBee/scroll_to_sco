@@ -19,6 +19,7 @@ python-dotenv>=1.0.1
 httpx>=0.27.2
 
 # OCR for L/R marker detection
+python-bidi==0.4.2  # Pin to pure-Python version (avoids Rust compilation)
 easyocr>=1.7.1
 
 # Pose estimation for photo analysis
