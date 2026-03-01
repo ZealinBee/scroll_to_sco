@@ -5,11 +5,12 @@ nixPkgs = ["python311Full"]
 cmds = [
     "python -m venv /opt/venv",
     "/opt/venv/bin/pip install --upgrade pip",
-    "/opt/venv/bin/pip install -r requirements.txt"
+    "/opt/venv/bin/pip install -r requirements.txt",
+    "/opt/venv/bin/python download_models.py"
 ]
 
 [variables]
 PATH = "/opt/venv/bin:${PATH}"
 
 [start]
-cmd = "/opt/venv/bin/python download_models.py && /opt/venv/bin/uvicorn main:app --host 0.0.0.0 --port $PORT"
+cmd = "/opt/venv/bin/uvicorn main:app --host 0.0.0.0 --port $PORT"
