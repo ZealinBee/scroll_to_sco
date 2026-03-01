@@ -8,8 +8,10 @@ import {
   BellOff,
   Calendar,
   Clock,
+  LogOut,
   Snowflake,
   Target,
+  User,
 } from "lucide-react";
 import {
   GamificationState,
@@ -20,6 +22,9 @@ import {
   canUseStreakFreeze,
   initializeGamificationState,
 } from "@/app/lib/gamification";
+import { createClient } from "@/app/lib/supabase/client";
+import { signOut } from "@/app/auth/actions";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -32,6 +37,7 @@ export default function SettingsPage() {
   const [state, setState] = useState<GamificationState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationSupported, setNotificationSupported] = useState(false);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
 
   // Load state on mount
   useEffect(() => {
@@ -50,6 +56,22 @@ export default function SettingsPage() {
 
     setNotificationSupported(isNotificationSupported());
     setIsLoading(false);
+
+    // Check if user is logged in and listen for auth changes
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Save state when it changes
@@ -332,6 +354,44 @@ export default function SettingsPage() {
               <p className="text-xs text-muted">Goals Met</p>
             </div>
           </div>
+        </section>
+
+        {/* Account Section */}
+        <section className="glass p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-[10px] bg-primary/10 flex items-center justify-center">
+              <User size={18} className="text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold text-dark">Account</h2>
+          </div>
+
+          {user ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-[12px] bg-light border border-dark/5">
+                <p className="text-sm font-medium text-dark">Signed in as</p>
+                <p className="text-sm text-muted">{user.email}</p>
+              </div>
+              <button
+                onClick={() => signOut()}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[12px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm font-medium"
+              >
+                <LogOut size={18} />
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted">
+                Sign in to sync your progress across devices.
+              </p>
+              <button
+                onClick={() => router.push("/login")}
+                className="btn btn-primary w-full justify-center"
+              >
+                Sign in
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </div>

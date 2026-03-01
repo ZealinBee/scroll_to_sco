@@ -21,12 +21,12 @@ import {
 } from "@/app/lib/breathing-instructions";
 import { TipList } from "@/app/components/TipWithExplanation";
 
-// Dynamically import 3D visualizer to avoid SSR issues
-const BreathingVisualizer3D = dynamic(() => import("./BreathingVisualizer3D"), {
+// Dynamically import 2D visualizer to avoid SSR issues
+const BreathingVisualizer2D = dynamic(() => import("./BreathingVisualizer2D"), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[300px] rounded-[16px] bg-dark/5 flex items-center justify-center">
-      <div className="text-muted text-sm">Loading 3D visualizer...</div>
+      <div className="text-muted text-sm">Loading visualizer...</div>
     </div>
   ),
 });
@@ -298,7 +298,7 @@ export default function BreathingExercise({
             {/* 3D Visualizer */}
             <div className="glass p-4 rounded-[20px]">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-dark">3D Visualization</h3>
+                <h3 className="font-medium text-dark">Visualization</h3>
                 <button
                   onClick={() => setCameraEnabled(!cameraEnabled)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${
@@ -328,7 +328,7 @@ export default function BreathingExercise({
                 }`}
               >
                 <div className="aspect-[4/5] max-h-[400px]">
-                  <BreathingVisualizer3D
+                  <BreathingVisualizer2D
                     phase={visualizerPhase}
                     progress={phaseProgress}
                     highlightZones={instruction.visualization.highlightZones}

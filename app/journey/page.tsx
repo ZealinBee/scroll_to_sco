@@ -47,6 +47,8 @@ import {
 import { TipList } from "@/app/components/TipWithExplanation";
 import InlineChat from "@/app/components/InlineChat";
 import dynamic from "next/dynamic";
+import { createClient } from "@/app/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 // Dynamically import BreathingExercise to avoid SSR issues with Three.js
 const BreathingExercise = dynamic(
@@ -414,6 +416,7 @@ export default function JourneyPage() {
   const [xrayData, setXrayData] = useState<XrayAnalysisData | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [gamificationState, setGamificationState] = useState<GamificationState | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -524,6 +527,27 @@ export default function JourneyPage() {
     }
   }, []);
 
+  // Check if user is logged in and listen for auth changes
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Check initial auth state
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Get daily routine with user's preferred duration
   const dailyRoutine = asymmetryProfile
     ? getDailyRoutine(asymmetryProfile, userProfile?.exerciseMinutesPerSession)
@@ -615,13 +639,21 @@ export default function JourneyPage() {
             New Analysis
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {gamificationState && (
               <StreakDisplay
                 streak={gamificationState.streakData.currentStreak}
                 freezeAvailable={gamificationState.streakData.streakFreezeAvailable}
                 compact
               />
+            )}
+            {!user && (
+              <button
+                onClick={() => router.push("/login")}
+                className="btn btn-secondary text-sm py-2"
+              >
+                Sign in
+              </button>
             )}
             <button
               onClick={() => router.push("/settings")}

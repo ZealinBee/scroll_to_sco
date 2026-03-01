@@ -11,6 +11,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import LandmarkEditor, { createDefaultLandmarks } from "@/app/components/LandmarkEditor";
+import { syncAnalysisData, syncProgressPhoto } from "@/app/lib/supabase/sync";
 
 // Types matching backend schema
 interface Keypoint {
@@ -2167,8 +2168,21 @@ export default function ResultsPage() {
                   };
                   progressPhotos.unshift(newPhoto);
                   localStorage.setItem("progressPhotos", JSON.stringify(progressPhotos));
+                  // Sync to cloud (async, non-blocking)
+                  syncProgressPhoto({
+                    image: newPhoto.image,
+                    date: newPhoto.date,
+                    notes: newPhoto.notes
+                  });
                 }
                 // Save analysis data for personalized exercises
+                const analysisDataToSave = {
+                  metrics: photoResult.metrics,
+                  risk_level: photoResult.risk_level,
+                  risk_factors: photoResult.risk_factors,
+                  recommendations: photoResult.recommendations,
+                  analyzed_at: new Date().toISOString()
+                };
                 localStorage.setItem("analysisData", JSON.stringify({
                   metrics: photoResult.metrics,
                   riskLevel: photoResult.risk_level,
@@ -2176,6 +2190,8 @@ export default function ResultsPage() {
                   recommendations: photoResult.recommendations,
                   analyzedAt: new Date().toISOString()
                 }));
+                // Sync to cloud (async, non-blocking)
+                syncAnalysisData(analysisDataToSave);
                 router.push("/journey");
               }}
               className="btn btn-primary w-full"

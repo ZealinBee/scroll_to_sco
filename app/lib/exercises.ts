@@ -508,7 +508,7 @@ export const EXERCISES: Exercise[] = [
     duration: "3-4 minutes",
     repetitions: "10 reps each direction, 2 sets",
     frequency: "Daily",
-    videoUrl: "https://www.youtube.com/watch?v=dN_0Z-PPWBY",
+    videoUrl: "https://www.youtube.com/watch?v=BM0Reyg5gXM",
     instructions: [
       "Start on hands and knees with hands under shoulders, knees under hips",
       "Place one hand behind your head with elbow pointing out",

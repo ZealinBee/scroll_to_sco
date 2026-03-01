@@ -60,9 +60,12 @@ export interface GamificationState {
 // CONSTANTS
 // ============================================
 
-const STORAGE_KEY = "gamificationState";
+const STORAGE_KEY = "scoliofit_gamification";
 const DEFAULT_GOAL_DAYS = 4;
 const DEFAULT_REMINDER_TIME = "09:00";
+
+// Flag to track if cloud sync is in progress (prevents recursive syncs)
+let isSyncing = false;
 
 // ============================================
 // DATE UTILITIES
@@ -201,14 +204,26 @@ export function loadGamificationState(): GamificationState | null {
 }
 
 /**
- * Save gamification state to localStorage
+ * Save gamification state to localStorage and optionally sync to cloud
  */
-export function saveGamificationState(state: GamificationState): void {
+export function saveGamificationState(state: GamificationState, skipCloudSync = false): void {
   if (typeof window === "undefined") return;
 
   try {
     state.lastUpdated = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    // Sync to cloud if user is logged in (async, non-blocking)
+    if (!skipCloudSync && !isSyncing) {
+      isSyncing = true;
+      import('./supabase/sync').then(({ syncGamificationState }) => {
+        syncGamificationState(state).finally(() => {
+          isSyncing = false;
+        });
+      }).catch(() => {
+        isSyncing = false;
+      });
+    }
   } catch (e) {
     console.error("Failed to save gamification state:", e);
   }
