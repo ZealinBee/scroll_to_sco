@@ -1,0 +1,38 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Claude
+.claude/
+
+# Railway/other platform configs
+railway.toml
+nixpacks.toml
+
+# Tests
+tests/
+*.test.py
+
+# Logs
+*.log
