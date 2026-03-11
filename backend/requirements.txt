@@ -3,7 +3,8 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 
-# ML/Computer Vision
+# ML/Computer Vision (CPU-only for deployment)
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.5.0
 torchvision>=0.20.0
 opencv-python-headless>=4.10.0
